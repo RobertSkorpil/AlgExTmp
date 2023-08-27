@@ -1358,6 +1358,12 @@ namespace symb
         using expr_t = Constant<1.0 / a>;
     };
 
+    template<NonConstant ExprT>
+    struct simplify_t<ProdExpr<ExprT, ZeroExpr>>
+    {
+        using expr_t = ZeroExpr;
+    };
+
     template<Expr ExprT>
     constexpr auto simplify_index(ExprT expr)
     {

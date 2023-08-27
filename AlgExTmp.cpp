@@ -81,10 +81,10 @@ constexpr double perm_sign()
 {
     constexpr std::array<size_t, sizeof...(I)> ix {{ I... }};
 
-    double sign{ -1 };
+    double sign{ 1 };
     for (size_t i{}; i < ix.size(); ++i)
         for (size_t j{ i + 1 }; j < ix.size(); ++j)
-            if (ix[j] < ix[i])
+            if (ix[j] > ix[i])
                 sign *= -1;
             else if (ix[j] == ix[i])
                 return 0;
@@ -212,7 +212,7 @@ constexpr auto matrix_inverse(MatrixT matrix)
     auto det_i{ simplify(Inv(matrix_determinant(matrix))) };
 
     constexpr auto D{ MatrixT::size() };
-    return matrix_inverse1<0, D>(matrix, det_i);
+    return simplify(matrix_inverse1<0, D>(matrix, det_i));
 }
 
 template<symb::Expr M>
@@ -256,6 +256,7 @@ int main()
 
     using namespace symb;
     
+//    auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>, v<'d'>, v<'e'>), arr(v<'f'>, v<'g'>, v<'h'>, v<'i'>, v<'j'>), arr(v<'k'>, v<'l'>, v<'m'>, v<'n'>, v<'o'>), arr(v<'p'>, v<'q'>, v<'r'>, v<'s'>, v<'t'>), arr(v<'u'>, v<'v'>, v<'w'>, v<'x'>, v<'y'>)) };
     auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>, v<'d'>), arr(v<'e'>, v<'f'>, v<'g'>, v<'h'>), arr(v<'i'>, v<'j'>, v<'k'>, v<'l'>), arr(v<'m'>, v<'n'>, v<'o'>, v<'p'>)) };
 //    auto matrix{ arr(arr(v<'a'>, c<0.0>, c<0.0>, c<0.0>), arr(c<0.0>, v<'f'>, c<0.0>, c<0.0>), arr(c<0.0>, c<0.0>, v<'k'>, c<0.0>), arr(c<0.0>, c<0.0>, c<0.0>, v<'p'>)) };
 //    auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>), arr(v<'d'>, v<'e'>, v<'f'>), arr(v<'g'>, v<'h'>, v<'i'>)) };
