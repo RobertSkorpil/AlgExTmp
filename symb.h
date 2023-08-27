@@ -355,10 +355,10 @@ namespace symb
         return Assignment<decltype(*this), RHS, Ix>{};
     }
 
-    struct no_action
+    struct nothing
     {
-        using act_t = no_action;
-        using next_t = no_action;
+        using act_t = nothing;
+        using next_t = nothing;
 
         static constexpr bool is_action{ true };
 
@@ -382,7 +382,7 @@ namespace symb
         }
     };
 
-    template<Action Act, Action Next = no_action, IndexAssignment Ix = no_index>
+    template<Action Act, Action Next = nothing, IndexAssignment Ix = no_index>
     struct Array
     {
         static constexpr auto non_power{ true };
@@ -410,7 +410,7 @@ namespace symb
 
         static std::u16string to_str_internal()
         {
-            return Act::to_str() + (std::is_same_v<Next, no_action> ? u"" :  u"," + Next::to_str_internal());
+            return Act::to_str() + (std::is_same_v<Next, nothing> ? u"" :  u"," + Next::to_str_internal());
         }
 
         static std::u16string to_str()
@@ -775,7 +775,7 @@ namespace symb
     template<char16_t vr, size_t ix = std::numeric_limits<size_t>::max()>
     constexpr VarExpr<vr> v{};
 
-    constexpr no_action make_array() {
+    constexpr nothing make_array() {
         return {};
     };
 
@@ -814,9 +814,9 @@ namespace symb
     };
 
     template<index ix, size_t val>
-    struct assign_index_t<ix, val, no_action>
+    struct assign_index_t<ix, val, nothing>
     {
-        using expr_t = no_action;
+        using expr_t = nothing;
     };
 
     template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
@@ -892,9 +892,9 @@ namespace symb
     };
 
     template<>
-    struct unassign_index_t<no_action>
+    struct unassign_index_t<nothing>
     {
-        using expr_t = no_action;
+        using expr_t = nothing;
     };
 
     template<IndexAssignment Next, Expr LHS, Expr RHS>
@@ -1001,7 +1001,7 @@ namespace symb
     constexpr auto make_for(ExprT expr)
     {
         if constexpr (val == range)
-            return no_action{};
+            return nothing{};
         else
             return Array<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(make_for<ix, val + 1, range, ExprT>(expr))> {};
     }
@@ -1010,6 +1010,32 @@ namespace symb
     constexpr auto For(ExprT expr)
     {
         return simplify(expand(make_for<ix, 0, range>(simplify(expand(expr)))));
+    }
+
+    template<index ix, size_t val, size_t skip, size_t range, Expr ExprT>
+    constexpr auto make_for_skip(ExprT expr);
+
+    template<index ix, size_t val, size_t skip, size_t range, Expr ExprT>
+    constexpr auto make_for_skip(ExprT expr)
+    {
+        if constexpr (val == range)
+            return nothing{};
+        else
+        {
+            constexpr auto next{ skip == val + 1 ? val + 2 : val + 1 };
+            return Array<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(make_for_skip<ix, next, skip, range, ExprT>(expr))> {};
+        }
+    }
+
+    template<index ix, size_t range, size_t skip, Expr ExprT>
+    constexpr auto ForSkip(ExprT expr)
+    {
+        if constexpr (skip == 0)
+            return simplify(expand(make_for<ix, 1, range>(simplify(expand(expr)))));
+        else if constexpr (skip == range - 1)
+            return simplify(expand(make_for<ix, 0, range - 1>(simplify(expand(expr)))));
+        else
+            return simplify(expand(make_for_skip<ix, 0, skip, range>(simplify(expand(expr)))));
     }
 
     template<typename T>
@@ -1437,7 +1463,7 @@ namespace symb
     {
         if constexpr (is_indexed_expr<ExprT>{})
             return true;
-        else if constexpr (std::is_same_v<ExprT, no_action>)
+        else if constexpr (std::is_same_v<ExprT, nothing>)
             return false;
         else if constexpr (is_var_expr<ExprT>{})
             return false;
