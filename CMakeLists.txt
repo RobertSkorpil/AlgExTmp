@@ -12,7 +12,7 @@ endif()
 project ("AlgExTmp")
 
 # Add source to this project's executable.
-add_executable (AlgExTmp "AlgExTmp.cpp"  "symb.h" "str.h" "str.cpp")
+add_executable (AlgExTmp "AlgExTmp.cpp"  "symb.h" "str.h" "str.cpp" "symb.cpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET AlgExTmp PROPERTY CXX_STANDARD 20)

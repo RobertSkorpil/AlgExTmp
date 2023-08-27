@@ -5,6 +5,13 @@
 #include <math.h>
 #include "str.h"
 
+
+#ifdef _MSC_VER
+#define INLINE __forceinline
+#else
+#define INLINE
+#endif
+
 using scalar = double;
 
 template<size_t N>
@@ -37,11 +44,11 @@ namespace symb
     struct var
     {
         char16_t n;
-        index ix{};
+        size_t ix;
 
         constexpr var(const var&) = default;
-        constexpr var(char16_t n) : n{ n } {}
-        constexpr var(char16_t n, char16_t ix) : n{ n }, ix{ ix } {}
+        constexpr var(char16_t n) : n{ n }, ix { std::numeric_limits<size_t>::max() } {}
+        constexpr var(char16_t n, size_t ix) : n{ n }, ix{ ix } {}
 
         constexpr bool operator ==(const var&) const = default;
     };
@@ -149,17 +156,52 @@ namespace symb
             return ix_val<typename Ix::next>(ix);
     }
 
+    template<Expr ExprT, index ix, IndexAssignment Ix = no_index>
+    struct IndexedExpr
+    {
+        using expr_t = ExprT;        
+        using ix_assign = Ix;
+        static constexpr index expr_ix = ix;
+
+        template<typename Valuation>
+        static auto INLINE eval(const Valuation& ctx)
+        {
+            return std::numeric_limits<scalar>::quiet_NaN();
+        }
+
+        template<VarExp D>
+        static constexpr auto diff()
+        {
+            return ExprT::diff();
+        }
+
+        template<VarExp D>
+        using diff_t = decltype(diff<D>());
+
+        template<Expr RHS>
+        constexpr auto operator =(const RHS& rhs);
+
+        static std::u16string to_str()
+        {
+            return ExprT::to_str() + u"[" + ix.n + u"]";
+        }
+    };
+
+    template<typename T>
+    struct is_indexed_expr : std::false_type {};
+
     template<Expr ExprT, index ix, IndexAssignment Ix>
-    struct IndexedExpr;
+    struct is_indexed_expr<IndexedExpr<ExprT, ix, Ix>> : std::true_type {};
 
     using func_single_t = scalar(scalar);
 
     template<scalar c, IndexAssignment Ix = no_index>
     struct Constant
     {
+        static constexpr auto value = c;
         using ix_assign = Ix;
         template<typename Valuation>
-        static auto eval(const Valuation& ctx)
+        static auto INLINE eval(const Valuation& ctx)
         {
             return c;
         }
@@ -183,36 +225,42 @@ namespace symb
     using ZeroExpr = Constant<0.0>;
     using OneExpr = Constant<1.0>;
 
-    template<var v, IndexAssignment Ix = no_index>
+    template<typename T>
+    struct is_constant : std::false_type {};
+
+    template<scalar c, IndexAssignment Ix>
+    struct is_constant<Constant<c, Ix>> : std::true_type {};
+
+    template<var vr, IndexAssignment Ix = no_index>
     struct VarExpr
     {
         static constexpr bool is_var{ true };
         static constexpr bool non_const{ true };
-        static constexpr var V { v };
+        static constexpr var V { vr };
         using ix_assign = Ix;
 
         template<typename Valuation>
-        static auto eval(const Valuation& ctx)
+        static auto INLINE eval(const Valuation& ctx)
         {
-            return ctx.var_value(v, ix_val<Ix>(v.ix));
+            return ctx.var_value(vr, vr.ix);
         }
 
         template<VarExp D>
         constexpr static auto diff()
         {
             constexpr auto d{ D::V };
-            if constexpr (d == v)
+            if constexpr (d == vr)
                 return OneExpr{};
-            else if constexpr (d.n == v.n)
+            else if constexpr (d.n == vr.n)
             {
-                constexpr auto ix1{ ix_val<Ix>(v.ix) };
+                constexpr auto ix1{ ix_val<Ix>(vr.ix) };
                 constexpr auto ix2{ ix_val<typename D::ix_assign>(D::V.ix) };
                 if constexpr (ix1 && ix2 && *ix1 == *ix2)
                     return OneExpr{};
                 else
                     return ZeroExpr{};
             }
-            else if constexpr (d != v)
+            else if constexpr (d != vr)
                 return ZeroExpr{};
             else
                 return ZeroExpr{};
@@ -223,8 +271,7 @@ namespace symb
 
         static std::u16string to_str()
         {
-            auto ix{ ix_val<Ix>(v.ix) };
-            return std::u16string{ v.n } + (v.ix.n ? (ix ? std::u16string{ wchar_t(u'₀' + *ix) } : std::u16string{ v.ix.n }) : u"");
+            return std::u16string{ vr.n } + ((vr.ix != std::numeric_limits<size_t>::max()) ? std::u16string{ wchar_t(u'₀' + vr.ix) } : u"");
         }
 
         template<Expr RHS>
@@ -234,8 +281,8 @@ namespace symb
     template<typename T>
     struct is_var_expr : std::false_type {};
 
-    template<var v, IndexAssignment Ix>
-    struct is_var_expr<VarExpr<v, Ix>> : std::true_type{};
+    template<var vr, IndexAssignment Ix>
+    struct is_var_expr<VarExpr<vr, Ix>> : std::true_type{};
 
     template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
     struct Assignment
@@ -244,7 +291,7 @@ namespace symb
         using ix_assign = Ix;
 
         template<typename Valuation>
-        static void eval(const Valuation& ctx)
+        static void INLINE eval(const Valuation& ctx)
         {
             ctx.set_var_value(LHS::V, ix_val<LHS::Ix>(LHS::V.ix), RHS::eval(ctx));
         }
@@ -255,6 +302,13 @@ namespace symb
         }
     };
 
+    template<Expr ExprT, index ix, IndexAssignment Ix>
+    template<Expr RHS> 
+    constexpr auto IndexedExpr<ExprT, ix, Ix>::operator =(const RHS &rhs)
+    {
+        return Assignment<decltype(*this), RHS, Ix>{};
+    }
+
     struct no_action
     {
         using act_t = no_action;
@@ -263,34 +317,53 @@ namespace symb
         static constexpr bool is_action{ true };
 
         template<typename Valuation>
-        static void eval(const Valuation& ctx)
+        static void INLINE eval(const Valuation& ctx)
         {}
-
 
         static std::u16string to_str()
         {
             return {};
+        }
+
+        static constexpr size_t size()
+        {
+            return 0;
         }
     };
 
     template<Action Act, Action Next = no_action, IndexAssignment Ix = no_index>
     struct Array
     {
+        static constexpr int non_const{};
         static constexpr bool is_action{ true };
         using act_t = Act;
         using next_t = Next;
         using ix_assign = Ix;
 
         template<typename Valuation>
-        static void eval(const Valuation& ctx)
+        static void INLINE eval(const Valuation& ctx)
         {
             Act::eval(ctx);
             Next::eval(ctx);
         }
 
+        template<VarExp D>
+        static constexpr auto diff()
+        {
+            return Array{};
+        }
+
+        template<VarExp D>
+        using diff_t = decltype(diff<D>());
+
         static std::u16string to_str()
         {
-            return Act::to_str() + u"\n" + Next::to_str();
+            return u"{" + Act::to_str() + (std::is_same_v<Next, no_action> ? u"" :  u"," + Next::to_str()) + u"}";
+        }
+
+        static constexpr size_t size()
+        {
+            return 1 + Next::size();
         }
     };
 
@@ -325,15 +398,15 @@ namespace symb
         using ix_assign = Ix;
 
         template<typename Valuation>
-        static auto eval(const Valuation& ctx)
+        static auto INLINE eval(const Valuation& ctx)
         {
             return LHS::eval(ctx) + RHS::eval(ctx);
         }
 
         template<VarExp D>
-        static constexpr SumExpr<typename LHS::template diff_t<D>, typename RHS::template diff_t<D>, Ix> diff()
+        static constexpr auto diff()
         {
-            return {};
+            return SumExpr<typename LHS::template diff_t<D>, typename RHS::template diff_t<D>, Ix>;
         }
 
         template<VarExp D>
@@ -354,15 +427,15 @@ namespace symb
         using ix_assign = Ix;
 
         template<typename Valuation>
-        static auto eval(const Valuation& ctx)
+        static auto INLINE eval(const Valuation& ctx)
         {
             return LHS::eval(ctx) * RHS::eval(ctx);
         }
 
         template<VarExp D>
-        static constexpr SumExpr<ProdExpr<LHS, typename RHS::template diff_t<D>>, ProdExpr<typename LHS::template diff_t<D>, RHS>> diff()
+        static constexpr auto diff()
         {
-            return {};
+            return SumExpr<ProdExpr<LHS, typename RHS::template diff_t<D>>, ProdExpr<typename LHS::template diff_t<D>, RHS>>{};
         }
 
         template<VarExp D>
@@ -418,7 +491,7 @@ namespace symb
 
     template<typename T> struct test;
 
-    template<Expr F, VarExp V, IndexAssignment Ix = no_index>
+    template<Expr F, Expr V, IndexAssignment Ix = no_index>
     struct DerivativeExpr
     {
         static constexpr int non_const{};
@@ -427,16 +500,14 @@ namespace symb
         using ix_assign = Ix;
 
         template<typename Valuation>
-        static auto eval(const Valuation& ctx)
+        static auto INLINE eval(const Valuation& ctx)
         {
             return std::numeric_limits<scalar>::quiet_NaN();
         }
 
         constexpr static auto derive()
         {
-            if constexpr (!V::V.ix)
-                return typename F::template diff_t<V>{};
-            else if constexpr (all_index_assigned<F>() && is_index_assigned<typename V::ix_assign, V::V.ix>())
+            if constexpr (!is_indexed_expr<F>{} && is_var_expr<V>{})
                 return typename F::template diff_t<V>{};
             else if (std::true_type{})
                 return DerivativeExpr{};
@@ -451,7 +522,7 @@ namespace symb
     template<typename T>
     struct is_derivative_expr : std::false_type {};
 
-    template<Expr F, VarExp V, IndexAssignment Ix>
+    template<Expr F, Expr V, IndexAssignment Ix>
     struct is_derivative_expr<DerivativeExpr<F, V, Ix>> : std::true_type {};
 
     template<DifferentialLike F, DifferentialLike V>
@@ -464,8 +535,15 @@ namespace symb
     template<typename f, Expr ArgExpr, IndexAssignment Ix>
     struct func_derivative {};
 
-    using sin_t = Func<sin, "sin">; sin_t Sin{};
-    using cos_t = Func<cos, "cos">; cos_t Cos{};
+    using sin_t = Func<sin, "Sin">; 
+    using cos_t = Func<cos, "Cos">;
+
+    scalar do_inverse(scalar x);
+    using inv_t = Func<do_inverse, "inv">;
+
+    extern sin_t Sin;
+    extern cos_t Cos;
+    extern inv_t Inv;
 
     template<Expr ArgExpr, IndexAssignment Ix>
     struct func_derivative<sin_t, ArgExpr, Ix>
@@ -479,6 +557,12 @@ namespace symb
         using expr_t = ProdExpr<Constant<-1.0>, FuncExpr<sin_t, ArgExpr, Ix>, Ix>;
     };
 
+    template<Expr ArgExpr, IndexAssignment Ix>
+    struct func_derivative<inv_t, ArgExpr, Ix>
+    {
+        using expr_t = FuncExpr<inv_t, ProdExpr<ProdExpr<Constant<-1.0>, ArgExpr, Ix>, ArgExpr, Ix>, Ix>;
+    };
+
     template<typename F, Expr ArgExpr, IndexAssignment Ix>
     struct FuncExpr
     {
@@ -488,16 +572,15 @@ namespace symb
         using ix_assign = Ix;
 
         template<typename Valuation>
-        static auto eval(const Valuation& ctx)
+        static auto INLINE eval(const Valuation& ctx)
         {
             return F::eval(ArgExpr::eval(ctx));
         }
 
         template<VarExp D>
-        static constexpr
-            ProdExpr< typename func_derivative<F, ArgExpr, Ix>::expr_t, typename ArgExpr::template diff_t<D>, Ix> diff()
+        static constexpr auto diff()
         {
-            return {};
+            return ProdExpr< typename func_derivative<F, ArgExpr, Ix>::expr_t, typename ArgExpr::template diff_t<D>, Ix>{};
         }
 
         template<VarExp D>
@@ -505,40 +588,12 @@ namespace symb
 
         static std::u16string to_str()
         {
-            return F::to_str() + u"(" + ArgExpr::to_str() + u")";
+            return F::to_str() + u"[" + ArgExpr::to_str() + u"]";
         }
     };
 
-    template<Expr ExprT, index ix, IndexAssignment Ix = no_index>
-    struct IndexedExpr
-    {
-        using expr_t = ExprT;        
-        using ix_assign = Ix;
-        static constexpr index expr_ix = ix;
-
-        template<typename Valuation>
-        static auto eval(const Valuation& ctx)
-        {
-            return std::numeric_limits<scalar>::quiet_NaN();
-        }
-
-        template<Expr RHS>
-        constexpr auto operator =(const RHS& rhs)
-        {
-            return Assignment<decltype(*this), RHS, Ix>{};
-        }
-
-        static std::u16string to_str()
-        {
-            return ExprT::to_str() + u"[" + ix.n + u"]";
-        }
-    };
-
-    template<typename T>
-    struct is_indexed_expr : std::false_type {};
-
-    template<Expr ExprT, index ix, IndexAssignment Ix>
-    struct is_indexed_expr<IndexedExpr<ExprT, ix, Ix>> : std::true_type {};
+    template<size_t i, size_t v, Expr Main, Expr ExprT>
+    constexpr auto do_index_seq(ExprT expr);
 
     template<index ix, Expr ExprT>
     constexpr auto Ix(ExprT expr)
@@ -546,11 +601,29 @@ namespace symb
         return IndexedExpr<ExprT, ix>{};
     }
 
+    template<size_t ix, Expr ExprT>
+    constexpr auto I(ExprT expr)
+    {
+        return do_index_seq<0, ix, ExprT>(expr);
+    }
+
     template<typename T>
     struct is_func_expr : std::false_type {};
 
     template<typename F, Expr ArgExpr, IndexAssignment Ix>
     struct is_func_expr<FuncExpr<F, ArgExpr, Ix>> : std::true_type {};
+
+    template<Expr ExprT, IndexAssignment Ix = no_index>
+    auto operator -(ExprT expr)
+    {
+        return ProdExpr<Constant<-1.0>, ExprT, Ix>{};
+    }
+
+    template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
+    auto operator -(LHS lhs, RHS rhs)
+    {
+        return SumExpr<LHS, ProdExpr<Constant<-1.0>, RHS, Ix>, Ix>{};
+    }
 
     template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
     auto operator +(LHS lhs, RHS rhs)
@@ -566,6 +639,24 @@ namespace symb
 
     template<scalar val>
     constexpr Constant<val> c{};
+
+    template<char16_t vr, size_t ix = std::numeric_limits<size_t>::max()>
+    constexpr VarExpr<vr> v{};
+
+    constexpr no_action make_array() {
+        return {};
+    };
+
+    template<Expr ExprT, Expr... Rest>
+    constexpr auto make_array(ExprT e, Rest... args)
+    {
+        return Array<ExprT, decltype(make_array(std::forward<Rest>(args)...))>{};
+    }
+
+    template<Expr... Args>
+    constexpr auto arr(Args... rest) {
+        return make_array(std::forward<Args>(rest)...);
+    };
 
     template<index ix, size_t val, Expr ExprT>
     struct assign_index_t
@@ -672,23 +763,44 @@ namespace symb
     constexpr auto expand(ExprT expr);
 
     template<index ix, size_t val, size_t range, Expr ExprT>
-    auto sum_sumand(ExprT expr);
+    constexpr auto sum_sumand(ExprT expr);
 
     template<index ix, size_t val, size_t range, Expr ExprT>
-    auto sum_sumand(ExprT expr)
+    constexpr auto sum_sumand(ExprT expr)
+    {
+        if constexpr (val == range)
+            return ZeroExpr{};
+        else if constexpr (val == range - 1)
+            return typename assign_index_t<ix, val, decltype(expr)>::expr_t{};
+        else if constexpr (std::true_type{})
+            return SumExpr<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(sum_sumand<ix, val + 1, range>(expr)), index_assignment<ix, val, typename ExprT::ix_assign>>{};
+    }
+
+    template<index ix, size_t range, Expr ExprT>
+    constexpr auto Sum(ExprT expr)
+    {
+        return simplify(expand(sum_sumand<ix, 0, range>(simplify(expand(expr)))));
+//        return sum_sumand<ix, 0, range>(expr);
+    }
+
+    template<index ix, size_t val, size_t range, Expr ExprT>
+    auto fac_factor(ExprT expr);
+
+    template<index ix, size_t val, size_t range, Expr ExprT>
+    auto fac_factor(ExprT expr)
     {
         if constexpr (val == range)
             return ZeroExpr{};
         else if constexpr (val == range - 1)
             return typename assign_index_t<ix, val, decltype(expr)>::expr_t{};
         else
-            return SumExpr<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(sum_sumand<ix, val + 1, range, ExprT>(expr)), index_assignment<ix, val, typename ExprT::ix_assign>>{};
+            return ProdExpr<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(fac_factor<ix, val + 1, range, ExprT>(expr)), index_assignment<ix, val, typename ExprT::ix_assign>>{};
     }
 
     template<index ix, size_t range, Expr ExprT>
-    auto Sum(ExprT expr)
+    auto Prod(ExprT expr)
     {
-        return simplify(expand(sum_sumand<ix, 0, range>(simplify(expand(expr)))));
+        return simplify(expand(fac_factor<ix, 0, range>(simplify(expand(expr)))));
     }
 
     template<index ix, size_t val, size_t range, Expr ExprT>
@@ -709,14 +821,14 @@ namespace symb
         return simplify(expand(make_for<ix, 0, range>(simplify(expand(expr)))));
     }
 
-    template<size_t i, size_t v, Expr Main, Expr ExprT>
-    constexpr auto do_index_seq(ExprT expr);
-
     template<typename T>
     struct debug;
 
     template<size_t v>
     struct debug_size_t;
+
+    template<Expr ExprT>
+    constexpr auto do_expand(ExprT expr);
 
     template<size_t i, size_t v, Expr Main, Expr ExprT>
     constexpr auto do_index_seq(ExprT expr)
@@ -730,20 +842,33 @@ namespace symb
         }
     }
 
-    template<Expr ExprT>
+    template<IndexAssignment Ix, Expr ExprT>
+    constexpr auto do_index(ExprT expr);
+
+    template<IndexAssignment Ix, Expr ExprT>
     constexpr auto do_index(ExprT expr)
     {
         if constexpr (is_array<typename ExprT::expr_t>{})
         {
             constexpr auto v{ ix_val_static<typename ExprT::ix_assign, ExprT::expr_ix>() };
-            return do_index_seq<size_t(0), v, ExprT>(typename ExprT::expr_t{});
+            return do_index_seq<size_t(0), v, ExprT>(do_expand(typename ExprT::expr_t{}));
+        }
+        else if constexpr (is_var_expr<typename ExprT::expr_t>{})
+        {
+            constexpr auto val{ ix_val_static<Ix, ExprT::expr_ix>() };
+            return VarExpr<var{ ExprT::expr_t::V.n, val }, Ix> {};
+        }
+        else if constexpr (is_indexed_expr<typename ExprT::expr_t>{})
+        {
+            auto r{ do_expand(typename ExprT::expr_t{}) };
+            if constexpr (!std::is_same_v<decltype(r), typename ExprT::expr_t>)
+                return do_index<Ix>(IndexedExpr<decltype(r), ExprT::expr_ix, typename ExprT::ix_assign>{});
+            else if constexpr (std::true_type{})
+                return expr;
         }
         else if constexpr (std::true_type{})
             return expr;
     }
-
-    template<Expr ExprT>
-    constexpr auto do_expand(ExprT expr);
 
     template<Expr ExprT>
     constexpr auto do_expand(ExprT expr)
@@ -753,7 +878,13 @@ namespace symb
         else if constexpr (is_indexed_expr<ExprT>{})
         {
             if constexpr (is_index_assigned<typename ExprT::ix_assign, ExprT::expr_ix>())
-                return do_index(expr);
+            {
+                auto r{ do_index<typename ExprT::ix_assign>(expr) };
+                if constexpr (std::is_same_v<decltype(r), ExprT>)
+                    return expr;
+                else if constexpr (std::true_type{})
+                    return do_expand(r);
+            }
             else if constexpr (std::true_type{})
                 return expr;
         }
@@ -762,9 +893,9 @@ namespace symb
         else if constexpr (is_prod_expr<ExprT>{})
             return ProdExpr<decltype(do_expand(typename ExprT::lhs_t{})), decltype(do_expand(typename ExprT::rhs_t{})), typename ExprT::ix_assign > {};
         else if constexpr (is_derivative_expr<ExprT>{})
-            return ExprT::derive();
+            return DerivativeExpr<decltype(do_expand(typename ExprT::f_t{})), decltype(do_expand(typename ExprT::v_t{})), typename ExprT::ix_assign > {}.derive();
         else if constexpr (is_func_expr<ExprT>{})
-            return FuncExpr<decltype(do_expand(typename ExprT::f_t{})), decltype(do_expand(typename ExprT::arg_t{})), typename ExprT::ix_assign > {};
+            return FuncExpr<decltype(typename ExprT::f_t{}), decltype(do_expand(typename ExprT::arg_t{})), typename ExprT::ix_assign > {};
         else if constexpr (std::true_type{})
             return expr;
     }
@@ -840,39 +971,59 @@ namespace symb
         using expr_t = FuncExpr<f, typename simplify_t<ArgExpr>::expr_t, Ix>;
     };
 
+    template<Expr Arg, IndexAssignment Ix>
+    struct simplify_t<SumExpr<ProdExpr<FuncExpr<sin_t, Arg, Ix>, FuncExpr<sin_t, Arg, Ix>, Ix>, ProdExpr<FuncExpr<cos_t, Arg, Ix>, FuncExpr<cos_t, Arg, Ix>, Ix>, Ix>>
+    {
+        using expr_t = OneExpr;
+    };
+
+    template<Expr Arg, IndexAssignment Ix>
+    struct simplify_t<SumExpr<ProdExpr<FuncExpr<cos_t, Arg, Ix>, FuncExpr<cos_t, Arg, Ix>, Ix>, ProdExpr<FuncExpr<sin_t, Arg, Ix>, FuncExpr<sin_t, Arg, Ix>, Ix>, Ix>>
+    {
+        using expr_t = OneExpr;
+    };
+
     template<Expr ExprT>
     constexpr auto do_simplify(ExprT expr)
     {
-        using expr_t = ExprT;// simplify_t<ExprT>;
+        using expr_t = simplify_t<ExprT>::expr_t;
 
         if constexpr (is_array<expr_t>{})
-            return Array<decltype(do_simplify(typename expr_t::act_t{})), decltype(do_simplify(typename expr_t::next_t{})), typename expr_t::ix_assign> {};
+            return Array<decltype(simplify(typename expr_t::act_t{})), decltype(simplify(typename expr_t::next_t{})), typename expr_t::ix_assign> {};
         else if constexpr (is_sum_expr<expr_t>{})
         {
-            if constexpr (std::is_same_v<typename expr_t::lhs_t, ZeroExpr>)
-                return do_simplify(typename expr_t::rhs_t{});
+            if constexpr (is_constant<typename expr_t::lhs_t>{} && is_constant<typename expr_t::rhs_t>{})
+                return Constant<expr_t::lhs_t::value + expr_t::rhs_t::value>{};
+            else if constexpr (std::is_same_v<typename expr_t::lhs_t, ZeroExpr>)
+                return simplify(typename expr_t::rhs_t{});
             else if constexpr (std::is_same_v<typename expr_t::rhs_t, ZeroExpr>)
-                return do_simplify(typename expr_t::lhs_t{});
+                return simplify(typename expr_t::lhs_t{});
             else if constexpr (std::is_same_v<typename expr_t::lhs_t, typename expr_t::rhs_t>)
-                return ProdExpr<decltype(c<2.0>), decltype(do_simplify(typename expr_t::lhs_t{})), typename expr_t::ix_assign> {};
+                return ProdExpr<decltype(c<2.0>), decltype(simplify(typename expr_t::lhs_t{})), typename expr_t::ix_assign> {};
             else if (std::true_type{})
-                return SumExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(do_simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
+                return SumExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
         }
         else if constexpr (is_prod_expr<expr_t>{})
         {
-            if constexpr (std::is_same_v<typename expr_t::lhs_t, ZeroExpr>)
+            if constexpr (is_constant<typename expr_t::lhs_t>{} && is_constant<typename expr_t::rhs_t>{})
+                return Constant<expr_t::lhs_t::value * expr_t::rhs_t::value>{};
+            else if constexpr (std::is_same_v<typename expr_t::lhs_t, ZeroExpr>)
                 return ZeroExpr{};
             else if constexpr (std::is_same_v<typename expr_t::rhs_t, ZeroExpr>)
                 return ZeroExpr{};
             else if constexpr (std::is_same_v<typename expr_t::lhs_t, OneExpr>)
-                return do_simplify(typename expr_t::rhs_t{});
+                return simplify(typename expr_t::rhs_t{});
             else if constexpr (std::is_same_v<typename expr_t::rhs_t, OneExpr>)
-                return do_simplify(typename expr_t::lhs_t{});
+                return simplify(typename expr_t::lhs_t{});
             else if (std::true_type{})
-                return ProdExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(do_simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
+                return ProdExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
+        }
+        else if constexpr (is_func_expr<expr_t>{})
+        {
+            return FuncExpr<typename expr_t::f_t, decltype(simplify(typename expr_t::arg_t{})), typename expr_t::ix_assign > {};
         }
         else if constexpr (std::true_type{})
-            return expr;
+            return expr_t{};
     }
 
     template<Expr ExprT>
@@ -881,7 +1032,7 @@ namespace symb
         using R = decltype(do_simplify(expr));
         if constexpr (std::is_same_v<ExprT, R>)
             return expr;
-        else
+        else if constexpr (std::true_type{})
             return simplify(R{});
     }
 
