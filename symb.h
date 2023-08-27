@@ -1361,7 +1361,7 @@ namespace symb
                 return ProdExpr<decltype(c<2.0>), decltype(simplify(typename expr_t::lhs_t{})), typename expr_t::ix_assign> {};
             else if constexpr (hash<typename expr_t::lhs_t> > hash<typename expr_t::rhs_t>)
                 return simplify(SumExpr<typename expr_t::rhs_t, typename expr_t::lhs_t, typename ExprT::ix_assign>{});
-            else if (std::true_type{})
+            else if constexpr (std::true_type{})
                 return SumExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
         }
         else if constexpr (is_prod_expr<expr_t>{})
@@ -1378,15 +1378,25 @@ namespace symb
                 return simplify(typename expr_t::lhs_t{});
             else if constexpr (hash<typename expr_t::lhs_t> > hash<typename expr_t::rhs_t>)
                 return simplify(ProdExpr<typename expr_t::rhs_t, typename expr_t::lhs_t, typename ExprT::ix_assign>{});
+//            else if constexpr (std::is_same_v<typename expr_t::lhs_t, typename expr_t::rhs_t>)
+//                return PowerExpr<decltype(simplify(typename expr_t::lhs_t{})), 2, typename expr_t::ix_assign> {};
             else if constexpr (is_prod_expr<typename expr_t::rhs_t>{})
             {
                 if constexpr (hash<typename expr_t::lhs_t> > hash<typename expr_t::rhs_t::lhs_t>)
                     return ProdExpr<typename expr_t::rhs_t::lhs_t, ProdExpr<typename expr_t::lhs_t, typename expr_t::rhs_t::rhs_t, typename expr_t::ix_assign>, typename expr_t::ix_assign>{};
-                else if (std::true_type{})
+#if 0
+                else if constexpr (is_power_expr<typename expr_t::lhs_t>{})
+                {
+                    if constexpr (std::is_same_v<typename expr_t::lhs_t::expr_t, typename expr_t::rhs_t::rhs_t> && expr_t::lhs_t::power == -1)
+                        return simplify(typename expr_t::rhs_t::lhs_t{});
+                    else if constexpr (std::true_type{})
+                        return ProdExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
+                }
+#endif
+                else if constexpr (std::true_type{})
                     return ProdExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
             }
-
-            else if (std::true_type{})
+            else if constexpr (std::true_type{})
                 return ProdExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
         }
         else if constexpr (is_func_expr<expr_t>{})
@@ -1395,7 +1405,8 @@ namespace symb
         }
         else if constexpr (is_power_expr<expr_t>{})
         {
-            return PowerExpr<decltype(simplify(typename expr_t::expr_t{})), expr_t::power, typename expr_t::ix_assign > {};
+if constexpr (std::true_type{})
+                return PowerExpr<decltype(simplify(typename expr_t::expr_t{})), expr_t::power, typename expr_t::ix_assign > {};
         }
         else if constexpr (std::true_type{})
             return expr_t{};
