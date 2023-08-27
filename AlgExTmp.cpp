@@ -124,11 +124,11 @@ int main()
     std::cout << to_str(ginv.to_str()) << '\n';
 
 
-    double R{}, A{};
+    double R{ 1.0 }, A{};
     struct eval_context
     {
-        double &r;
-        double &a;
+        double& r;
+        double& a;
         std::array<double, 4> out;
 
         eval_context(double& r, double& a)
@@ -159,18 +159,38 @@ int main()
     std::cout << to_str(Gamma.to_str()) << '\n';
 
 
-    double vr{}, va{ 0.1 };
-    double ar, aa;
+    double v[2]{ 0.0, 0.2 };
+    double a[2];
 
+    for (int p{}; p < 10000000; p++)
+    {
+        double tdelta = 1e-6;
+        std::array<std::array<std::array<double, D>, D>, D> gamma_val;
+        gamma_val[0][0][0] = I<0>(I<0>(I<0>(Gamma))).eval(ctx);
+        gamma_val[0][0][1] = I<0>(I<0>(I<1>(Gamma))).eval(ctx);
+        gamma_val[0][1][0] = I<0>(I<1>(I<0>(Gamma))).eval(ctx);
+        gamma_val[0][1][1] = I<0>(I<1>(I<1>(Gamma))).eval(ctx);
+        gamma_val[1][0][0] = I<1>(I<0>(I<0>(Gamma))).eval(ctx);
+        gamma_val[1][0][1] = I<1>(I<0>(I<1>(Gamma))).eval(ctx);
+        gamma_val[1][1][0] = I<1>(I<1>(I<0>(Gamma))).eval(ctx);
+        gamma_val[1][1][1] = I<1>(I<1>(I<1>(Gamma))).eval(ctx);
 
+        a[0] = 0;
+        a[1] = 0;
+        for (int i{}; i < D; ++i)
+            for (int j{}; j < D; ++j)
+                for (int k{}; k < D; ++k)
+                    a[i] += -gamma_val[i][j][k] * v[j] * v[k];
 
-    std::array<std::array<std::array<double, D>, D>, D> gamma_val;
-    gamma_val[0][0][0] = I<0>(I<0>(I<0>(Gamma))).eval(ctx);
-    gamma_val[0][0][1] = I<0>(I<0>(I<1>(Gamma))).eval(ctx);
-    gamma_val[0][1][0] = I<0>(I<1>(I<0>(Gamma))).eval(ctx);
-    gamma_val[0][1][1] = I<0>(I<1>(I<1>(Gamma))).eval(ctx);
-    gamma_val[1][0][0] = I<1>(I<0>(I<0>(Gamma))).eval(ctx);
-    gamma_val[1][0][1] = I<1>(I<0>(I<1>(Gamma))).eval(ctx);
-    gamma_val[1][1][0] = I<1>(I<1>(I<0>(Gamma))).eval(ctx);
-    gamma_val[1][1][1] = I<1>(I<1>(I<1>(Gamma))).eval(ctx);
+        R += tdelta * v[0];
+        A += tdelta * v[1];
+
+        v[0] += tdelta * a[0];
+        v[1] += tdelta * a[1];
+
+        auto x{ R * cos(A) };
+        auto y{ R * sin(A) };
+        if(p % 100 == 0)
+            std::cout << "X: " << x << " Y: " << y << '\n';
+    }
 }

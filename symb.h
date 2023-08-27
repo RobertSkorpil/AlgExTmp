@@ -122,6 +122,9 @@ namespace symb
     }
 
     template<Expr ExprT>
+    constexpr bool has_indexed_expr();
+
+    template<Expr ExprT>
     constexpr bool all_index_assigned();
 
     template<IndexAssignment Ix, index ix>
@@ -241,6 +244,9 @@ namespace symb
 
     template<scalar c, IndexAssignment Ix>
     struct is_constant<Constant<c, Ix>> : std::true_type {};
+
+    template<scalar c, IndexAssignment Ix>
+    struct is_constant<const Constant<c, Ix>> : std::true_type {};
 
     template<var vr, IndexAssignment Ix = no_index>
     struct VarExpr
@@ -709,30 +715,6 @@ namespace symb
     };
 
     template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
-    struct assign_index_t<ix, val, SumExpr<LHS, RHS, Next>>;
-
-    template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
-    struct assign_index_t<ix, val, ProdExpr<LHS, RHS, Next>>;
-
-    template<index ix, size_t val, IndexAssignment Next, typename F, Expr Arg>
-    struct assign_index_t<ix, val, FuncExpr<F, Arg, Next>>;
-
-    template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
-    struct assign_index_t<ix, val, DerivativeExpr<LHS, RHS, Next>>;
-
-    template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
-    struct assign_index_t<ix, val, Assignment<LHS&, RHS, Next>>;
-
-    template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
-    struct assign_index_t<ix, val, Assignment<LHS, RHS, Next>>;
-
-    template<index ix, size_t val, IndexAssignment Next, var v>
-    struct assign_index_t<ix, val, VarExpr<v, Next>>;
-
-    template<index ix, size_t val, IndexAssignment Next, Action Act, Action NextAct>
-    struct assign_index_t<ix, val, Array<Act, NextAct, Next>>;
-
-    template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
     struct assign_index_t<ix, val, SumExpr<LHS, RHS, Next>>
     {
         using expr_t = SumExpr<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
@@ -765,7 +747,7 @@ namespace symb
     template<index ix, size_t val, IndexAssignment Next, var v>
     struct assign_index_t<ix, val, VarExpr<v, Next>>
     {
-        using expr_t = VarExpr<v, decltype(add_index_assignment<ix, val, Next>())>;
+        using expr_t = VarExpr<v, no_index>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, Action Act, Action NextAct>
@@ -778,6 +760,78 @@ namespace symb
     struct assign_index_t<ix, val, FuncExpr<F, Arg, Next>>
     {
         using expr_t = FuncExpr<F, typename assign_index_t<ix, val, Arg>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
+    };
+
+
+    template<Expr ExprT>
+    struct unassign_index_t
+    {
+    };
+
+    template<IndexAssignment Next, scalar c>
+    struct unassign_index_t<Constant<c, Next>>
+    {
+        using expr_t = Constant<c, Next>;
+    };
+
+    template<IndexAssignment Next, scalar c>
+    struct unassign_index_t<const Constant<c, Next>>
+    {
+        using expr_t = Constant<c, Next>;
+    };
+
+    template<>
+    struct unassign_index_t<no_action>
+    {
+        using expr_t = no_action;
+    };
+
+    template<IndexAssignment Next, Expr LHS, Expr RHS>
+    struct unassign_index_t<SumExpr<LHS, RHS, Next>>
+    {
+        using expr_t = SumExpr<typename unassign_index_t<LHS>::expr_t, typename unassign_index_t<RHS>::expr_t, no_index>;
+    };
+
+    template<IndexAssignment Next, Expr LHS, Expr RHS>
+    struct unassign_index_t<ProdExpr<LHS, RHS, Next>>
+    {
+        using expr_t = ProdExpr<typename unassign_index_t<LHS>::expr_t, typename unassign_index_t<RHS>::expr_t, no_index>;
+    };
+
+    template<IndexAssignment Next, Expr LHS, Expr RHS>
+    struct unassign_index_t<DerivativeExpr<LHS, RHS, Next>>
+    {
+        using expr_t = DerivativeExpr<typename unassign_index_t<LHS>::expr_t, typename unassign_index_t<RHS>::expr_t, no_index>;
+    };
+
+    template<IndexAssignment Next, Expr LHS, Expr RHS>
+    struct unassign_index_t<Assignment<LHS&, RHS, Next>>
+    {
+        using expr_t = Assignment<typename unassign_index_t<LHS>::expr_t, typename unassign_index_t<RHS>::expr_t, no_index>;
+    };
+
+    template<IndexAssignment Next, Expr LHS, Expr RHS>
+    struct unassign_index_t<Assignment<LHS, RHS, Next>>
+    {
+        using expr_t = Assignment<typename unassign_index_t<LHS>::expr_t, typename unassign_index_t<RHS>::expr_t, no_index>;
+    };
+
+    template<IndexAssignment Next, var v>
+    struct unassign_index_t<VarExpr<v, Next>>
+    {
+        using expr_t = VarExpr<v, no_index>;
+    };
+
+    template<IndexAssignment Next, Action Act, Action NextAct>
+    struct unassign_index_t<Array<Act, NextAct, Next>>
+    {
+        using expr_t = Array<typename unassign_index_t<Act>::expr_t, typename unassign_index_t<NextAct>::expr_t, no_index>;
+    };
+
+    template<IndexAssignment Next, typename F, Expr Arg>
+    struct unassign_index_t<FuncExpr<F, Arg, Next>>
+    {
+        using expr_t = FuncExpr<F, typename unassign_index_t<Arg>::expr_t, no_index>;
     };
 
     template<Expr ExprT>
@@ -1007,9 +1061,19 @@ namespace symb
     };
 
     template<Expr ExprT>
+    constexpr auto simplify_index(ExprT expr)
+    {
+        if constexpr (has_indexed_expr<ExprT>())
+            return expr;
+        else if constexpr (std::true_type{})
+            return typename unassign_index_t<ExprT>::expr_t{};
+    }
+
+    template<Expr ExprT>
     constexpr auto do_simplify(ExprT expr)
     {
-        using expr_t = simplify_t<ExprT>::expr_t;
+        using e1 = decltype(simplify_index(expr));
+        using expr_t = simplify_t<e1>::expr_t;
 
         if constexpr (is_array<expr_t>{})
             return Array<decltype(simplify(typename expr_t::act_t{})), decltype(simplify(typename expr_t::next_t{})), typename expr_t::ix_assign> {};
@@ -1076,6 +1140,32 @@ namespace symb
             return is_index_assigned<typename ExprT::ix_assign, ExprT::V.ix>();
         else if (std::true_type{})
             return false;
+    }
+
+    template<Expr ExprT>
+    constexpr bool has_indexed_expr()
+    {
+        if constexpr (is_indexed_expr<ExprT>{})
+            return true;
+        else if constexpr (std::is_same_v<ExprT, no_action>)
+            return false;
+        else if constexpr (is_var_expr<ExprT>{})
+            return false;
+        else if constexpr (is_constant<ExprT>{})
+            return false;
+        else if constexpr (is_array<ExprT>{})
+            return has_indexed_expr<typename ExprT::act_t>() || has_indexed_expr<typename ExprT::next_t>();
+        else if constexpr (is_sum_expr<ExprT>{} || is_prod_expr<ExprT>{})
+            return has_indexed_expr<typename ExprT::lhs_t>() || has_indexed_expr<typename ExprT::rhs_t>();
+        else if constexpr (is_derivative_expr<ExprT>{})
+            return has_indexed_expr<typename ExprT::f_t>() || has_indexed_expr<typename ExprT::v_t>();
+        else if constexpr (is_func_expr<ExprT>{})
+            return has_indexed_expr<typename ExprT::arg_t>();
+        else if constexpr (std::true_type{})
+        {
+            debug<ExprT>{};
+            return true;
+        }
     }
 
 #if 0
