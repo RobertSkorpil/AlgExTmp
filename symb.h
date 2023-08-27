@@ -99,6 +99,9 @@ namespace symb
     concept NonConstant = requires { T::non_const; }&& Expr<T>;
 
     template<typename T>
+    concept NonPower = requires { T::non_power; } && Expr<T>;
+
+    template<typename T>
     concept ActualAction = requires { T::is_action; };
 
     template<typename T>
@@ -187,6 +190,7 @@ namespace symb
     template<Expr ExprT, index ix, IndexAssignment Ix = no_index>
     struct IndexedExpr
     {
+        static constexpr auto non_power{ true };
         using expr_t = ExprT;        
         using ix_assign = Ix;
         static constexpr index expr_ix = ix;
@@ -226,6 +230,7 @@ namespace symb
     template<scalar c, IndexAssignment Ix = no_index>
     struct Constant
     {
+        static constexpr auto non_power{ true };
         static constexpr auto value = c;
         using ix_assign = Ix;
         template<typename Valuation>
@@ -265,6 +270,7 @@ namespace symb
     template<var vr, IndexAssignment Ix = no_index>
     struct VarExpr
     {
+        static constexpr auto non_power{ true };
         static constexpr bool is_var{ true };
         static constexpr bool non_const{ true };
         static constexpr var V { vr };
@@ -326,6 +332,7 @@ namespace symb
     template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
     struct Assignment
     {
+        static constexpr auto non_power{ true };
         static constexpr bool is_action{ true };
         using ix_assign = Ix;
 
@@ -378,6 +385,7 @@ namespace symb
     template<Action Act, Action Next = no_action, IndexAssignment Ix = no_index>
     struct Array
     {
+        static constexpr auto non_power{ true };
         static constexpr int non_const{};
         static constexpr bool is_action{ true };
         using act_t = Act;
@@ -441,6 +449,7 @@ namespace symb
     template<Expr LHS, Expr RHS, IndexAssignment Ix>
     struct SumExpr
     {
+        static constexpr auto non_power{ true };
         static constexpr int non_const{};
         using lhs_t = LHS;
         using rhs_t = RHS;
@@ -551,6 +560,7 @@ namespace symb
     template<Expr F, Expr V, IndexAssignment Ix = no_index>
     struct DerivativeExpr
     {
+        static constexpr auto non_power{ true };
         static constexpr int non_const{};
         using f_t = F;
         using v_t = V;
@@ -623,6 +633,7 @@ namespace symb
     template<typename F, Expr ArgExpr, IndexAssignment Ix>
     struct FuncExpr
     {
+        static constexpr auto non_power{ true };
         static constexpr int non_const{};
         using f_t = F;
         using arg_t = ArgExpr;
@@ -653,6 +664,62 @@ namespace symb
             return F::hash();
         }
     };
+
+    template<Expr ExprT, int Power, IndexAssignment Ix = no_index>
+    struct PowerExpr
+    {
+        static constexpr int non_const{};
+        static constexpr auto power = Power;
+        using expr_t = ExprT;
+        using ix_assign = Ix;
+
+        template<typename Valuation>
+        static auto INLINE eval(const Valuation& ctx)
+        {
+            if constexpr (Power == 0)
+                return 1.0;
+            else if constexpr (Power > 0)
+                return ExprT::eval(ctx) * PowerExpr<ExprT, Power - 1, Ix>::eval(ctx);
+            else if constexpr (Power < 0)
+                return 1.0 / ExprT::eval(ctx) * PowerExpr<ExprT, Power + 1, Ix>::eval(ctx);
+        }
+
+        template<VarExp D>
+        static constexpr auto diff()
+        {
+            return to_product().template diff<D>();
+        }
+
+        template<VarExp D>
+        using diff_t = decltype(diff<D>());
+
+        static std::u16string to_str()
+        {
+            return ExprT::to_str() + u"^" + to_u16str(std::to_string(Power));
+        }
+
+        constexpr static auto to_product_abs()
+        {
+            if constexpr (Power == 0)
+                return OneExpr{};
+            else if constexpr (std::true_type{})
+                return ProdExpr<ExprT, decltype(PowerExpr<ExprT, Power - 1, Ix>::to_product_abs()), Ix>{};
+        }
+
+        constexpr static auto to_product()
+        {
+            if constexpr (Power < 0)
+                return FuncExpr<inv_t, decltype(PowerExpr<ExprT, -Power, Ix>::to_product_abs()), Ix>{};
+            else if constexpr (std::true_type{})
+                return to_product_abs();
+        }
+    };
+
+    template<typename T>
+    struct is_power_expr : std::false_type {};
+
+    template<Expr ExprT, int Power, IndexAssignment Ix>
+    struct is_power_expr<PowerExpr<ExprT, Power, Ix>> : std::true_type {};
 
     template<typename F, Expr ArgExpr, IndexAssignment Ix>
     constexpr size_t hash<FuncExpr<F, ArgExpr, Ix>> = FuncExpr<F, ArgExpr, Ix>::hash();
@@ -782,6 +849,12 @@ namespace symb
         using expr_t = Assignment<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
+    template<index ix, size_t val, IndexAssignment Next, Expr E, int Power>
+    struct assign_index_t<ix, val, PowerExpr<E, Power, Next>>
+    {
+        using expr_t = PowerExpr<typename assign_index_t<ix, val, E>::expr_t, Power, decltype(add_index_assignment<ix, val, Next>())>;
+    };
+
     template<index ix, size_t val, IndexAssignment Next, var v>
     struct assign_index_t<ix, val, VarExpr<v, Next>>
     {
@@ -852,6 +925,12 @@ namespace symb
     struct unassign_index_t<Assignment<LHS, RHS, Next>>
     {
         using expr_t = Assignment<typename unassign_index_t<LHS>::expr_t, typename unassign_index_t<RHS>::expr_t, no_index>;
+    };
+
+    template<IndexAssignment Next, int Power, Expr E>
+    struct unassign_index_t<PowerExpr<E, Power, Next>>
+    {
+        using expr_t = PowerExpr<E, Power>;
     };
 
     template<IndexAssignment Next, var v>
@@ -1031,6 +1110,24 @@ namespace symb
         using expr_t = ZeroExpr;
     };
 
+    template<Expr ExprT>
+    struct simplify_t<PowerExpr<ExprT, 0>>
+    {
+        using expr_t = OneExpr;
+    };
+
+    template<Expr ExprT>
+    struct simplify_t<PowerExpr<ExprT, 1>>
+    {
+        using expr_t = ExprT;
+    };
+
+    template<Expr ExprT, int Power>
+    struct simplify_t<PowerExpr<ExprT, Power>>
+    {
+        using expr_t = PowerExpr<typename simplify_t<ExprT>::expr_t, Power>;
+    };
+
     template<scalar s, NonConstant Sumand, IndexAssignment Ix>
     struct simplify_t<SumExpr<Sumand, ProdExpr<Constant<s>, Sumand, Ix>, Ix>>
     {
@@ -1091,6 +1188,54 @@ namespace symb
         using expr_t = FuncExpr<inv_t, RHS>;
     };
 
+    template<NonPower E, NonPower RHS>
+    struct simplify_t<ProdExpr<E, ProdExpr<E, RHS>>>
+    {
+        using expr_t = ProdExpr<PowerExpr<E, 2>, RHS>;
+    };
+
+    template<Expr E, int Power>
+    struct simplify_t<ProdExpr<PowerExpr<E, Power>, E>>
+    {
+        using expr_t = PowerExpr<E, Power + 1>;
+    };
+
+    template<NonConstant E, int Power, NonConstant RHS>
+    struct simplify_t<ProdExpr<PowerExpr<E, Power>, ProdExpr<E, RHS>>>
+    {
+        using expr_t = ProdExpr<PowerExpr<E, Power + 1>, RHS>;
+    };
+
+    template<NonConstant E, int Power1, int Power2>
+    struct simplify_t<ProdExpr<PowerExpr<E, Power1>, PowerExpr<E, Power2>>>
+    {
+        using expr_t = PowerExpr<E, Power1 + Power2>;
+    };
+
+    template<NonConstant E, int Power1, int Power2>
+    struct simplify_t<PowerExpr<PowerExpr<E, Power1>, Power2>>
+    {
+        using expr_t = PowerExpr<E, Power1 * Power2>;
+    };
+
+    template<Expr E, int Power>
+    struct simplify_t<FuncExpr<inv_t, PowerExpr<E, Power>>>
+    {
+        using expr_t = PowerExpr<E, -Power>;
+    };
+
+    template<NonConstant LHS, NonConstant RHS>
+    struct simplify_t<FuncExpr<inv_t, ProdExpr<LHS, RHS>>>
+    {
+        using expr_t = ProdExpr<PowerExpr<LHS, -1>, FuncExpr<inv_t, RHS>>;
+    };
+
+    template<NonConstant E, int Power1, int Power2, NonConstant RHS>
+    struct simplify_t<ProdExpr<PowerExpr<E, Power1>, ProdExpr<PowerExpr<E, Power2>, RHS>>>
+    {
+        using expr_t = ProdExpr<PowerExpr<E, Power1 + Power2>, RHS>;
+    };
+
 #if 0
     template<Expr ProdLHS, Expr ProdRHS, IndexAssignment Ix>
     struct simplify_t<SumExpr<ProdExpr<ProdLHS, ProdRHS, Ix>, ProdExpr<ProdRHS, ProdLHS, Ix>, Ix>>
@@ -1149,6 +1294,24 @@ namespace symb
     struct simplify_t<SumExpr<ProdExpr<S2, ProdExpr<S, ProdExpr<FuncExpr<sin_t, Arg>, FuncExpr<sin_t, Arg>>>>, ProdExpr<S2, ProdExpr<S, ProdExpr<FuncExpr<cos_t, Arg>, FuncExpr<cos_t, Arg>>>>>>
     {
         using expr_t = ProdExpr<S2, S>;
+    };
+
+    template<VarExp S>
+    struct simplify_t<ProdExpr<S, S>>
+    {
+        using expr_t = PowerExpr<S, 2>;
+    };
+
+    template<VarExp S, int Power>
+    struct simplify_t<ProdExpr<PowerExpr<S, -Power>, PowerExpr<S, Power>>>
+    {
+        using expr_t = OneExpr;
+    };
+
+    template<VarExp S, int Power>
+    struct simplify_t<ProdExpr<S, PowerExpr<S, Power>>>
+    {
+        using expr_t = PowerExpr<S, 1 + Power>;
     };
 
     template<Expr ExprT>
@@ -1242,7 +1405,10 @@ namespace symb
         else if constexpr (is_var_expr<ExprT>{})
             return is_index_assigned<typename ExprT::ix_assign, ExprT::V.ix>();
         else if (std::true_type{})
+        {
+            debug<ExprT>{};
             return false;
+        }
     }
 
     template<Expr ExprT>
@@ -1264,6 +1430,8 @@ namespace symb
             return has_indexed_expr<typename ExprT::f_t>() || has_indexed_expr<typename ExprT::v_t>();
         else if constexpr (is_func_expr<ExprT>{})
             return has_indexed_expr<typename ExprT::arg_t>();
+        else if constexpr (is_power_expr<ExprT>{})
+            return has_indexed_expr<typename ExprT::expr_t>();
         else if constexpr (std::true_type{})
         {
             debug<ExprT>{};
