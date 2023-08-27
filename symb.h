@@ -26,6 +26,14 @@ struct StringLiteral {
     {
         return std::u16string{ std::begin(value), std::end(value) };
     }
+
+    constexpr auto hash() const
+    {
+        size_t v{};
+        for (size_t i{}; i < N - 1; ++i)
+            v += value[i];
+        return v;
+    }
 };
 
 namespace symb
@@ -85,6 +93,9 @@ namespace symb
     concept Valuation = requires { T::var_value('x'); };
 
     template<typename T>
+    concept ConstantLike = requires { T::is_const; }&& Expr<T>;
+
+    template<typename T>
     concept NonConstant = requires { T::non_const; }&& Expr<T>;
 
     template<typename T>
@@ -101,6 +112,9 @@ namespace symb
 
     template<Expr ExprT>
     auto simplify(ExprT expr);
+
+    template<Expr ExprT>
+    constexpr size_t hash = 0;
 
     template<index Ix, size_t Val, IndexAssignment Next>
     struct index_assignment
@@ -293,7 +307,15 @@ namespace symb
 
         template<Expr RHS>
         constexpr auto operator =(const RHS& rhs);
+
+        static constexpr size_t hash()
+        {
+            return V.n;
+        }
     };
+
+    template<var vr, IndexAssignment Ix>
+    constexpr size_t hash<VarExpr<vr, Ix>> = VarExpr<vr, Ix>::hash();
 
     template<typename T>
     struct is_var_expr : std::false_type {};
@@ -474,6 +496,9 @@ namespace symb
         }
     };
 
+    template<Expr LHS, Expr RHS, IndexAssignment Ix>
+    constexpr size_t hash<ProdExpr<LHS, RHS, Ix>> = std::numeric_limits<size_t>::max();
+
     template<typename T>
     struct is_prod_expr : std::false_type {};
 
@@ -500,6 +525,11 @@ namespace symb
         static std::u16string to_str()
         {
             return name.to_str();
+        }
+
+        static constexpr size_t hash()
+        {
+            return name.hash();
         }
     };
 
@@ -617,7 +647,15 @@ namespace symb
         {
             return F::to_str() + u"[" + ArgExpr::to_str() + u"]";
         }
+
+        static constexpr size_t hash()
+        {
+            return F::hash();
+        }
     };
+
+    template<typename F, Expr ArgExpr, IndexAssignment Ix>
+    constexpr size_t hash<FuncExpr<F, ArgExpr, Ix>> = FuncExpr<F, ArgExpr, Ix>::hash();
 
     template<size_t i, size_t v, Expr Main, Expr ExprT>
     constexpr auto do_index_seq(ExprT expr);
@@ -988,6 +1026,12 @@ namespace symb
     template<Expr ExprT>
     struct simplify_t { using expr_t = ExprT; };
 
+    template<>
+    struct simplify_t<Constant<-0.0>>
+    {
+        using expr_t = ZeroExpr;
+    };
+
     template<scalar s, NonConstant Sumand, IndexAssignment Ix>
     struct simplify_t<SumExpr<Sumand, ProdExpr<Constant<s>, Sumand, Ix>, Ix>>
     {
@@ -1000,6 +1044,18 @@ namespace symb
         using expr_t = ProdExpr<Constant<s + 1>, typename simplify_t<Sumand>::expr_t, Ix>;
     };
 
+    template<scalar a, scalar b, NonConstant RRHS>
+    struct simplify_t<ProdExpr<Constant<a>, ProdExpr<Constant<b>, RRHS>>>
+    {
+        using expr_t = ProdExpr<Constant<a * b>, RRHS>;
+    };
+
+    template<NonConstant LHS, scalar a, NonConstant RRHS>
+    struct simplify_t<ProdExpr<LHS, ProdExpr<Constant<a>, RRHS>>>
+    {
+        using expr_t = ProdExpr<Constant<a>, ProdExpr<LHS, RRHS>>;
+    };
+
     template<scalar a, scalar b, IndexAssignment Ix>
     struct simplify_t<ProdExpr<Constant<a>, Constant<b>, Ix>>
     {
@@ -1010,6 +1066,12 @@ namespace symb
     struct simplify_t<SumExpr<Constant<a>, Constant<b>, Ix>>
     {
         using expr_t = Constant<a + b>;
+    };
+
+    template<scalar a, NonConstant RLHS, NonConstant LRHS, NonConstant RRHS>
+    struct simplify_t<ProdExpr<ProdExpr<Constant<a>, RLHS>, ProdExpr<LRHS, RRHS>>>
+    {
+        using expr_t = ProdExpr<Constant<a>, ProdExpr<RLHS, ProdExpr<LRHS, RRHS>>>;
     };
 
 #if 0
@@ -1048,16 +1110,28 @@ namespace symb
         using expr_t = FuncExpr<f, typename simplify_t<ArgExpr>::expr_t, Ix>;
     };
 
-    template<Expr Arg, IndexAssignment Ix>
-    struct simplify_t<SumExpr<ProdExpr<FuncExpr<sin_t, Arg, Ix>, FuncExpr<sin_t, Arg, Ix>, Ix>, ProdExpr<FuncExpr<cos_t, Arg, Ix>, FuncExpr<cos_t, Arg, Ix>, Ix>, Ix>>
+    template<Expr Arg>
+    struct simplify_t<SumExpr<ProdExpr<FuncExpr<sin_t, Arg>, FuncExpr<sin_t, Arg>>, ProdExpr<FuncExpr<cos_t, Arg>, FuncExpr<cos_t, Arg>>>>
     {
         using expr_t = OneExpr;
     };
 
-    template<Expr Arg, IndexAssignment Ix, IndexAssignment Ix2, IndexAssignment Ix3, IndexAssignment Ix4, IndexAssignment Ix5, IndexAssignment Ix6, IndexAssignment Ix7>
-    struct simplify_t<SumExpr<ProdExpr<FuncExpr<cos_t, Arg, Ix>, FuncExpr<cos_t, Arg, Ix2>, Ix3>, ProdExpr<FuncExpr<sin_t, Arg, Ix4>, FuncExpr<sin_t, Arg, Ix5>, Ix6>, Ix7>>
+    template<Expr Arg>
+    struct simplify_t<SumExpr<ProdExpr<FuncExpr<cos_t, Arg>, FuncExpr<cos_t, Arg>>, ProdExpr<FuncExpr<sin_t, Arg>, FuncExpr<sin_t, Arg>>>>
     {
         using expr_t = OneExpr;
+    };
+
+    template<Expr Arg, NonConstant S>
+    struct simplify_t<SumExpr<ProdExpr<S, ProdExpr<FuncExpr<sin_t, Arg>, FuncExpr<sin_t, Arg>>>, ProdExpr<S, ProdExpr<FuncExpr<cos_t, Arg>, FuncExpr<cos_t, Arg>>>>>
+    {
+        using expr_t = S;
+    };
+
+    template<Expr Arg, NonConstant S, NonConstant S2>
+    struct simplify_t<SumExpr<ProdExpr<S2, ProdExpr<S, ProdExpr<FuncExpr<sin_t, Arg>, FuncExpr<sin_t, Arg>>>>, ProdExpr<S2, ProdExpr<S, ProdExpr<FuncExpr<cos_t, Arg>, FuncExpr<cos_t, Arg>>>>>>
+    {
+        using expr_t = ProdExpr<S2, S>;
     };
 
     template<Expr ExprT>
@@ -1087,12 +1161,14 @@ namespace symb
                 return simplify(typename expr_t::lhs_t{});
             else if constexpr (std::is_same_v<typename expr_t::lhs_t, typename expr_t::rhs_t>)
                 return ProdExpr<decltype(c<2.0>), decltype(simplify(typename expr_t::lhs_t{})), typename expr_t::ix_assign> {};
+            else if constexpr (hash<typename expr_t::lhs_t> > hash<typename expr_t::rhs_t>)
+                return simplify(SumExpr<typename expr_t::rhs_t, typename expr_t::lhs_t, typename ExprT::ix_assign>{});
             else if (std::true_type{})
                 return SumExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
         }
         else if constexpr (is_prod_expr<expr_t>{})
         {
-            if constexpr (is_constant<typename expr_t::lhs_t>{} && is_constant<typename expr_t::rhs_t>{})
+            if constexpr (is_constant<typename expr_t::lhs_t>{}&& is_constant<typename expr_t::rhs_t>{})
                 return Constant<expr_t::lhs_t::value * expr_t::rhs_t::value>{};
             else if constexpr (std::is_same_v<typename expr_t::lhs_t, ZeroExpr>)
                 return ZeroExpr{};
@@ -1102,6 +1178,16 @@ namespace symb
                 return simplify(typename expr_t::rhs_t{});
             else if constexpr (std::is_same_v<typename expr_t::rhs_t, OneExpr>)
                 return simplify(typename expr_t::lhs_t{});
+            else if constexpr (hash<typename expr_t::lhs_t> > hash<typename expr_t::rhs_t>)
+                return simplify(ProdExpr<typename expr_t::rhs_t, typename expr_t::lhs_t, typename ExprT::ix_assign>{});
+            else if constexpr (is_prod_expr<typename expr_t::rhs_t>{})
+            {
+                if constexpr (hash<typename expr_t::lhs_t> > hash<typename expr_t::rhs_t::lhs_t>)
+                    return ProdExpr<typename expr_t::rhs_t::lhs_t, ProdExpr<typename expr_t::lhs_t, typename expr_t::rhs_t::rhs_t, typename expr_t::ix_assign>, typename expr_t::ix_assign>{};
+                else if (std::true_type{})
+                    return ProdExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
+            }
+
             else if (std::true_type{})
                 return ProdExpr<decltype(simplify(typename expr_t::lhs_t{})), decltype(simplify(typename expr_t::rhs_t{})), typename expr_t::ix_assign > {};
         }

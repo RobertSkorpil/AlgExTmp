@@ -92,6 +92,9 @@ int main()
 
     using namespace symb;
 
+    auto tst{ simplify(Sin(v<'x'>) * Cos(v<'x'>)) };
+    std::cout << to_str(tst.to_str()) << '\n';
+
     auto vars{ arr(v<'r'>, v<'a'>) };
     std::cout << to_str(vars.to_str()) << '\n';
 
