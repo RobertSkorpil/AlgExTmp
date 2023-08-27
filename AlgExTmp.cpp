@@ -55,9 +55,9 @@ constexpr auto perm_sign2_2()
         if constexpr (i == j)
             return 0.0;
         if constexpr (j < i)
-            return -1.0;
-        else
             return 1.0;
+        else
+            return -1.0;
     }() };
 
     return Constant<sign>{};
@@ -84,6 +84,17 @@ constexpr auto inverse2(M m)
     auto det_g{ Sum<'a', 2>(Sum<'b', 2>(Ix<'a'>(Ix<'b'>(p2)) * Ix<'a'>(I<0>(m)) * Ix<'b'>(I<1>(m)))) };
     auto i{ Inv(det_g) };
     return simplify(arr(arr(i * I<1>(I<1>(m)), i * -I<1>(I<0>(m))), arr(i * -I<0>(I<1>(m)), i * I<0>(I<0>(m)))));
+}
+
+template<symb::Expr MetricT, symb::Expr Vars>
+constexpr auto Christoffel(MetricT g, Vars vars)
+{
+    using namespace symb;
+    constexpr auto D{ g.size() };
+    auto ginv{ inverse2(g) };
+    return For<'i', D>(For<'k', D>(For<'l', D>(Sum<'m', D>(
+        c<0.5> * Ix<'i'>(Ix<'m'>(ginv)) *
+    (d(Ix<'k'>(Ix<'m'>(g))) / d(Ix<'l'>(vars)) + d(Ix<'l'>(Ix<'m'>(g))) / d(Ix<'k'>(vars)) - d(Ix<'l'>(Ix<'k'>(g))) / d(Ix<'m'>(vars)))))));
 }
 
 int main()
@@ -123,8 +134,10 @@ int main()
     auto g{ For<'a', D>(For<'b', D>(Sum<'c', D>((Ix<'a'>(Ix<'c'>(J)) * Ix<'b'>(Ix<'c'>(J)))))) };
     std::cout << to_str(g.to_str()) << '\n';
 
-    auto ginv{ inverse2(g) };
-    std::cout << to_str(ginv.to_str()) << '\n';
+    auto vars_sphere{ arr(v<'a'>, v<'b'>) };
+    auto g_sphere{ arr(arr(v<'R'> *v<'R'>, c<0.0>), arr(c<0.0>, v<'R'> *v<'R'> *Sin(v<'a'>) * Sin(v<'a'>))) };
+    auto gamma_sphere{ Christoffel(g_sphere, vars_sphere) };
+    std::cout << to_str(gamma_sphere.to_str()) << '\n';
 
 
     double R{ 1.0 }, A{};
@@ -132,7 +145,7 @@ int main()
     {
         double& r;
         double& a;
-        std::array<double, 4> out;
+        std::array<double, 4> out{};
 
         eval_context(double& r, double& a)
             : r{ r }, a{ a }
@@ -156,9 +169,7 @@ int main()
     };
     eval_context ctx{ R, A };
 
-    auto Gamma{ For<'i', D>(For<'k', D>(For<'l', D>(Sum<'m', D>(
-        c<0.5> *Ix<'i'>(Ix<'m'>(ginv)) *
-    (d(Ix<'k'>(Ix<'m'>(g))) / d(Ix<'l'>(vars)) + d(Ix<'l'>(Ix<'m'>(g))) / d(Ix<'k'>(vars)) - d(Ix<'k'>(Ix<'l'>(g))) / d(Ix<'m'>(vars))))))) };
+    auto Gamma{ Christoffel(g, vars) };
     std::cout << to_str(Gamma.to_str()) << '\n';
 
 
@@ -170,12 +181,12 @@ int main()
         double tdelta = 1e-6;
         std::array<std::array<std::array<double, D>, D>, D> gamma_val;
         gamma_val[0][0][0] = I<0>(I<0>(I<0>(Gamma))).eval(ctx);
-        gamma_val[0][0][1] = I<0>(I<0>(I<1>(Gamma))).eval(ctx);
+        gamma_val[1][0][0] = I<0>(I<0>(I<1>(Gamma))).eval(ctx);
         gamma_val[0][1][0] = I<0>(I<1>(I<0>(Gamma))).eval(ctx);
-        gamma_val[0][1][1] = I<0>(I<1>(I<1>(Gamma))).eval(ctx);
-        gamma_val[1][0][0] = I<1>(I<0>(I<0>(Gamma))).eval(ctx);
+        gamma_val[1][1][0] = I<0>(I<1>(I<1>(Gamma))).eval(ctx);
+        gamma_val[0][0][1] = I<1>(I<0>(I<0>(Gamma))).eval(ctx);
         gamma_val[1][0][1] = I<1>(I<0>(I<1>(Gamma))).eval(ctx);
-        gamma_val[1][1][0] = I<1>(I<1>(I<0>(Gamma))).eval(ctx);
+        gamma_val[0][1][1] = I<1>(I<1>(I<0>(Gamma))).eval(ctx);
         gamma_val[1][1][1] = I<1>(I<1>(I<1>(Gamma))).eval(ctx);
 
         a[0] = 0;
