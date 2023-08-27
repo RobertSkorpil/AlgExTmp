@@ -893,7 +893,6 @@ namespace symb
     constexpr auto Sum(ExprT expr)
     {
         return simplify(expand(sum_sumand<ix, 0, range>(simplify(expand(expr)))));
-//        return sum_sumand<ix, 0, range>(expr);
     }
 
     template<index ix, size_t val, size_t range, Expr ExprT>
@@ -1072,6 +1071,24 @@ namespace symb
     struct simplify_t<ProdExpr<ProdExpr<Constant<a>, RLHS>, ProdExpr<LRHS, RRHS>>>
     {
         using expr_t = ProdExpr<Constant<a>, ProdExpr<RLHS, ProdExpr<LRHS, RRHS>>>;
+    };
+
+    template<scalar a, NonConstant RHS>
+    struct simplify_t<FuncExpr<inv_t, ProdExpr<Constant<a>, RHS>>>
+    {
+        using expr_t = ProdExpr<Constant<a>, FuncExpr<inv_t, RHS>>;
+    };
+
+    template<NonConstant E>
+    struct simplify_t<ProdExpr<E, FuncExpr<inv_t, E>>>
+    {
+        using expr_t = OneExpr;
+    };
+
+    template<NonConstant E, NonConstant RHS>
+    struct simplify_t<ProdExpr<E, FuncExpr<inv_t, ProdExpr<E, RHS>>>>
+    {
+        using expr_t = FuncExpr<inv_t, RHS>;
     };
 
 #if 0
