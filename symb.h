@@ -101,7 +101,7 @@ namespace symb
 
     template<Expr ExprT>
     auto simplify(ExprT expr);
-    
+
     template<index Ix, size_t Val, IndexAssignment Next>
     struct index_assignment
     {
@@ -109,6 +109,17 @@ namespace symb
         static constexpr size_t val { Val };
         using next = Next;
     };
+    
+    template<index Ix, size_t Val, IndexAssignment Old>
+    constexpr auto add_index_assignment()
+    {
+        if constexpr (std::is_same_v<Old, no_index>)
+            return index_assignment<Ix, Val, Old>{};
+        else if constexpr (Ix.n < Old::ix.n)
+            return index_assignment<Ix, Val, Old>{};
+        else if constexpr (std::true_type{})
+            return index_assignment<Old::ix, Old::val, decltype(add_index_assignment<Ix, Val, typename Old::next>())>{};
+    }
 
     template<Expr ExprT>
     constexpr bool all_index_assigned();
@@ -325,6 +336,11 @@ namespace symb
             return {};
         }
 
+        static std::u16string to_str_internal()
+        {
+            return {};
+        }
+
         static constexpr size_t size()
         {
             return 0;
@@ -356,9 +372,14 @@ namespace symb
         template<VarExp D>
         using diff_t = decltype(diff<D>());
 
+        static std::u16string to_str_internal()
+        {
+            return Act::to_str() + (std::is_same_v<Next, no_action> ? u"" :  u"," + Next::to_str_internal());
+        }
+
         static std::u16string to_str()
         {
-            return u"{" + Act::to_str() + (std::is_same_v<Next, no_action> ? u"" :  u"," + Next::to_str()) + u"}";
+            return u"{" + to_str_internal() + u"}";
         }
 
         static constexpr size_t size()
@@ -406,7 +427,7 @@ namespace symb
         template<VarExp D>
         static constexpr auto diff()
         {
-            return SumExpr<typename LHS::template diff_t<D>, typename RHS::template diff_t<D>, Ix>;
+            return SumExpr<typename LHS::template diff_t<D>, typename RHS::template diff_t<D>, Ix>{};
         }
 
         template<VarExp D>
@@ -456,7 +477,7 @@ namespace symb
     template<typename f, Expr ArgExpr, IndexAssignment Ix = no_index>
     struct FuncExpr;
 
-    template<func_single_t f, StringLiteral name, IndexAssignment Ix = no_index>
+    template<func_single_t f, StringLiteral name>
     struct Func
     {
         static double eval(double arg)
@@ -467,7 +488,7 @@ namespace symb
         template<Expr ArgExpr>
         constexpr auto operator()(const ArgExpr& arg)
         {
-            return FuncExpr<Func, ArgExpr, Ix>{};
+            return FuncExpr<Func, ArgExpr>{};
         }
 
         static std::u16string to_str()
@@ -666,13 +687,13 @@ namespace symb
     template<index ix, size_t val, IndexAssignment Next, Expr ExprT>
     struct assign_index_t<ix, val, IndexedExpr<ExprT, ix, Next>>
     {
-        using expr_t = IndexedExpr<ExprT, ix, index_assignment<ix, val, Next>>;
+        using expr_t = IndexedExpr<ExprT, ix, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, Expr ExprT, index expr_ix>
     struct assign_index_t<ix, val, IndexedExpr<ExprT, expr_ix, Next>>
     {
-        using expr_t = IndexedExpr<typename assign_index_t<ix, val, ExprT>::expr_t, expr_ix, index_assignment<ix, val, Next>>;
+        using expr_t = IndexedExpr<typename assign_index_t<ix, val, ExprT>::expr_t, expr_ix, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, scalar c>
@@ -714,49 +735,49 @@ namespace symb
     template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
     struct assign_index_t<ix, val, SumExpr<LHS, RHS, Next>>
     {
-        using expr_t = SumExpr<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, index_assignment<ix, val, Next>>;
+        using expr_t = SumExpr<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
     struct assign_index_t<ix, val, ProdExpr<LHS, RHS, Next>>
     {
-        using expr_t = ProdExpr<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, index_assignment<ix, val, Next>>;
+        using expr_t = ProdExpr<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
     struct assign_index_t<ix, val, DerivativeExpr<LHS, RHS, Next>>
     {
-        using expr_t = DerivativeExpr<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, index_assignment<ix, val, Next>>;
+        using expr_t = DerivativeExpr<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
     struct assign_index_t<ix, val, Assignment<LHS&, RHS, Next>>
     {
-        using expr_t = Assignment<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, index_assignment<ix, val, Next>>;
+        using expr_t = Assignment<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, Expr LHS, Expr RHS>
     struct assign_index_t<ix, val, Assignment<LHS, RHS, Next>>
     {
-        using expr_t = Assignment<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, index_assignment<ix, val, Next>>;
+        using expr_t = Assignment<typename assign_index_t<ix, val, LHS>::expr_t, typename assign_index_t<ix, val, RHS>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, var v>
     struct assign_index_t<ix, val, VarExpr<v, Next>>
     {
-        using expr_t = VarExpr<v, index_assignment<ix, val, Next>>;
+        using expr_t = VarExpr<v, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, Action Act, Action NextAct>
     struct assign_index_t<ix, val, Array<Act, NextAct, Next>>
     {
-        using expr_t = Array<typename assign_index_t<ix, val, Act>::expr_t, typename assign_index_t<ix, val, NextAct>::expr_t, index_assignment<ix, val, Next>>;
+        using expr_t = Array<typename assign_index_t<ix, val, Act>::expr_t, typename assign_index_t<ix, val, NextAct>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<index ix, size_t val, IndexAssignment Next, typename F, Expr Arg>
     struct assign_index_t<ix, val, FuncExpr<F, Arg, Next>>
     {
-        using expr_t = FuncExpr<F, typename assign_index_t<ix, val, Arg>::expr_t, index_assignment<ix, val, Next>>;
+        using expr_t = FuncExpr<F, typename assign_index_t<ix, val, Arg>::expr_t, decltype(add_index_assignment<ix, val, Next>())>;
     };
 
     template<Expr ExprT>
@@ -773,7 +794,7 @@ namespace symb
         else if constexpr (val == range - 1)
             return typename assign_index_t<ix, val, decltype(expr)>::expr_t{};
         else if constexpr (std::true_type{})
-            return SumExpr<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(sum_sumand<ix, val + 1, range>(expr)), index_assignment<ix, val, typename ExprT::ix_assign>>{};
+            return SumExpr<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(sum_sumand<ix, val + 1, range>(expr)), decltype(add_index_assignment<ix, val, typename ExprT::ix_assign>())>{};
     }
 
     template<index ix, size_t range, Expr ExprT>
@@ -794,7 +815,7 @@ namespace symb
         else if constexpr (val == range - 1)
             return typename assign_index_t<ix, val, decltype(expr)>::expr_t{};
         else
-            return ProdExpr<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(fac_factor<ix, val + 1, range, ExprT>(expr)), index_assignment<ix, val, typename ExprT::ix_assign>>{};
+            return ProdExpr<typename assign_index_t<ix, val, decltype(expr)>::expr_t, decltype(fac_factor<ix, val + 1, range, ExprT>(expr)), decltype(index_assignment<ix, val, typename ExprT::ix_assign>())>{};
     }
 
     template<index ix, size_t range, Expr ExprT>
@@ -856,7 +877,7 @@ namespace symb
         else if constexpr (is_var_expr<typename ExprT::expr_t>{})
         {
             constexpr auto val{ ix_val_static<Ix, ExprT::expr_ix>() };
-            return VarExpr<var{ ExprT::expr_t::V.n, val }, Ix> {};
+            return VarExpr<var{ ExprT::expr_t::V.n, val }, no_index> {};
         }
         else if constexpr (is_indexed_expr<typename ExprT::expr_t>{})
         {
@@ -937,6 +958,7 @@ namespace symb
         using expr_t = Constant<a + b>;
     };
 
+#if 0
     template<Expr ProdLHS, Expr ProdRHS, IndexAssignment Ix>
     struct simplify_t<SumExpr<ProdExpr<ProdLHS, ProdRHS, Ix>, ProdExpr<ProdRHS, ProdLHS, Ix>, Ix>>
     {
@@ -964,6 +986,7 @@ namespace symb
 
         using expr_t = SumExpr<SumExpr<ProdExpr<sa, sc, Ix>, ProdExpr<sa, sd, Ix>>, SumExpr<ProdExpr<sb, sc, Ix>, ProdExpr<sb, sd, Ix>, Ix>, Ix>;
     };
+#endif 0
 
     template<typename f, Expr ArgExpr, IndexAssignment Ix>
     struct simplify_t<FuncExpr<f, ArgExpr, Ix>>
@@ -977,8 +1000,8 @@ namespace symb
         using expr_t = OneExpr;
     };
 
-    template<Expr Arg, IndexAssignment Ix>
-    struct simplify_t<SumExpr<ProdExpr<FuncExpr<cos_t, Arg, Ix>, FuncExpr<cos_t, Arg, Ix>, Ix>, ProdExpr<FuncExpr<sin_t, Arg, Ix>, FuncExpr<sin_t, Arg, Ix>, Ix>, Ix>>
+    template<Expr Arg, IndexAssignment Ix, IndexAssignment Ix2, IndexAssignment Ix3, IndexAssignment Ix4, IndexAssignment Ix5, IndexAssignment Ix6, IndexAssignment Ix7>
+    struct simplify_t<SumExpr<ProdExpr<FuncExpr<cos_t, Arg, Ix>, FuncExpr<cos_t, Arg, Ix2>, Ix3>, ProdExpr<FuncExpr<sin_t, Arg, Ix4>, FuncExpr<sin_t, Arg, Ix5>, Ix6>, Ix7>>
     {
         using expr_t = OneExpr;
     };

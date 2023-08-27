@@ -111,7 +111,7 @@ int main()
 
     constexpr auto D{ vars.size() };
 
-    auto map{ arr(v<'r'> *Cos(v<'a'>), v<'r'> * Sin(v<'a'>)) };
+    auto map{ arr(v<'r'> *Cos(v<'a'>), v<'r'> *Sin(v<'a'>)) };
     std::cout << to_str(map.to_str()) << '\n';
 
     auto J{ For<'v', D>(For<'u', D>(d(Ix<'v'>(map)) / d(Ix<'u'>(vars)))) };
@@ -124,15 +124,20 @@ int main()
     std::cout << to_str(ginv.to_str()) << '\n';
 
 
+    double R{}, A{};
     struct eval_context
     {
-        double r = 1;
-        double a = 1;
+        double &r;
+        double &a;
         std::array<double, 4> out;
+
+        eval_context(double& r, double& a)
+            : r{ r }, a{ a }
+        {
+        }
 
         auto var_value(const var& v, std::optional<size_t> index) const
         {
-            std::cout << 'x' << '\n';
             switch (v.n)
             {
             case 'r':
@@ -146,11 +151,26 @@ int main()
         {
         }
     };
-    eval_context ctx;
-    g.eval(ctx);
+    eval_context ctx{ R, A };
 
     auto Gamma{ For<'i', D>(For<'k', D>(For<'l', D>(Sum<'m', D>(
         c<0.5> *Ix<'i'>(Ix<'m'>(ginv)) *
     (d(Ix<'k'>(Ix<'m'>(g))) / d(Ix<'l'>(vars)) + d(Ix<'l'>(Ix<'m'>(g))) / d(Ix<'k'>(vars)) - d(Ix<'k'>(Ix<'l'>(g))) / d(Ix<'m'>(vars))))))) };
     std::cout << to_str(Gamma.to_str()) << '\n';
+
+
+    double vr{}, va{ 0.1 };
+    double ar, aa;
+
+
+
+    std::array<std::array<std::array<double, D>, D>, D> gamma_val;
+    gamma_val[0][0][0] = I<0>(I<0>(I<0>(Gamma))).eval(ctx);
+    gamma_val[0][0][1] = I<0>(I<0>(I<1>(Gamma))).eval(ctx);
+    gamma_val[0][1][0] = I<0>(I<1>(I<0>(Gamma))).eval(ctx);
+    gamma_val[0][1][1] = I<0>(I<1>(I<1>(Gamma))).eval(ctx);
+    gamma_val[1][0][0] = I<1>(I<0>(I<0>(Gamma))).eval(ctx);
+    gamma_val[1][0][1] = I<1>(I<0>(I<1>(Gamma))).eval(ctx);
+    gamma_val[1][1][0] = I<1>(I<1>(I<0>(Gamma))).eval(ctx);
+    gamma_val[1][1][1] = I<1>(I<1>(I<1>(Gamma))).eval(ctx);
 }
