@@ -99,7 +99,7 @@ namespace symb
     concept NonConstant = requires { T::non_const; }&& Expr<T>;
 
     template<typename T>
-    concept NonPower = requires { T::non_power; } && Expr<T>;
+    concept NonPower = requires { T::non_power; }&& NonConstant<T>;
 
     template<typename T>
     concept ActualAction = requires { T::is_action; };
@@ -1141,7 +1141,7 @@ namespace symb
     };
 
     template<scalar a, scalar b, NonConstant RRHS>
-    struct simplify_t<ProdExpr<Constant<a>, ProdExpr<Constant<b>, RRHS>>>
+    struct simplify_t<ProdExpr<Constant<a>, ProdExpr<Constant<b>, RRHS>/*, std::enable_if_t<a - b != 0, no_index*/>>
     {
         using expr_t = ProdExpr<Constant<a * b>, RRHS>;
     };
@@ -1222,6 +1222,12 @@ namespace symb
     struct simplify_t<FuncExpr<inv_t, PowerExpr<E, Power>>>
     {
         using expr_t = PowerExpr<E, -Power>;
+    };
+
+    template<VarExp E>
+    struct simplify_t<FuncExpr<inv_t, E>>
+    {
+        using expr_t = PowerExpr<E, -1>;
     };
 
     template<NonConstant LHS, NonConstant RHS>
@@ -1314,6 +1320,18 @@ namespace symb
         using expr_t = PowerExpr<S, 1 + Power>;
     };
 
+    template<scalar a, int Power, Expr ExprT>
+    struct simplify_t<PowerExpr<ProdExpr<Constant<a>, ExprT>, Power>>
+    {
+        using expr_t = ProdExpr<PowerExpr<Constant<a>, Power>, PowerExpr<ExprT, Power>>;
+    };
+ 
+    template<scalar a>
+    struct simplify_t<PowerExpr<Constant<a>, -1>>
+    {
+        using expr_t = Constant<1.0 / a>;
+    };
+
     template<Expr ExprT>
     constexpr auto simplify_index(ExprT expr)
     {
@@ -1374,6 +1392,10 @@ namespace symb
         else if constexpr (is_func_expr<expr_t>{})
         {
             return FuncExpr<typename expr_t::f_t, decltype(simplify(typename expr_t::arg_t{})), typename expr_t::ix_assign > {};
+        }
+        else if constexpr (is_power_expr<expr_t>{})
+        {
+            return PowerExpr<decltype(simplify(typename expr_t::expr_t{})), expr_t::power, typename expr_t::ix_assign > {};
         }
         else if constexpr (std::true_type{})
             return expr_t{};

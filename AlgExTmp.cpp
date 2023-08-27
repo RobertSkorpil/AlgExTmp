@@ -97,14 +97,39 @@ constexpr auto Christoffel(MetricT g, Vars vars)
     (d(Ix<'k'>(Ix<'m'>(g))) / d(Ix<'l'>(vars)) + d(Ix<'l'>(Ix<'m'>(g))) / d(Ix<'k'>(vars)) - d(Ix<'l'>(Ix<'k'>(g))) / d(Ix<'m'>(vars)))))));
 }
 
+template<symb::Expr ChristoffelT, symb::Expr Vars>
+constexpr auto Riemann(ChristoffelT G, Vars vars)
+{
+    using namespace symb;
+    constexpr auto D{ G.size() };
+
+    return For<'a', D>(For<'b', D>(For<'c', D>(For<'d', D>(
+        d(Ix<'b'>(Ix<'d'>(Ix<'a'>(G)))) / d(Ix<'c'>(vars))
+      - d(Ix<'b'>(Ix<'c'>(Ix<'a'>(G)))) / d(Ix<'d'>(vars))
+      + Sum<'l', D>(Ix<'l'>(Ix<'c'>(Ix<'a'>(G))) * Ix<'b'>(Ix<'d'>(Ix<'l'>(G))))
+      - Sum<'l', D>(Ix<'l'>(Ix<'d'>(Ix<'a'>(G))) * Ix<'b'>(Ix<'c'>(Ix<'l'>(G))))
+    ))));
+}
+
 int main()
 {
     SetConsoleOutputCP(CP_UTF8);
 
     using namespace symb;
+    
+#if 0
+    auto t{ arr(
+        arr(arr(v<'a'>, v<'b'>, v<'c'>), arr(v<'d'>, v<'e'>, v<'f'>), arr(v<'g'>, v<'h'>, v<'i'>)),
+        arr(arr(v<'j'>, v<'k'>, v<'l'>), arr(v<'m'>, v<'n'>, v<'o'>), arr(v<'p'>, v<'q'>, v<'r'>)),
+        arr(arr(v<'s'>, v<'t'>, v<'u'>), arr(v<'v'>, v<'w'>, v<'x'>), arr(v<'y'>, v<'z'>, v<'Z'>))
+    )
+        };
+    auto t2{ For<'a', 3>(For<'b', 3>(For<'c', 3>(For<'d', 3>(Sum<'l', 3>(Ix<'b'>(Ix<'d'>(Ix<'l'>(t)))))))) };
+    auto R{ Riemann(t, c<0.0>) };
 
     auto tst{ simplify(Sin(v<'x'>) * Cos(v<'x'>)) };
     std::cout << to_str(tst.to_str()) << '\n';
+#endif
 
     auto vars{ arr(v<'r'>, v<'a'>) };
     std::cout << to_str(vars.to_str()) << '\n';
@@ -139,16 +164,19 @@ int main()
     auto gamma_sphere{ Christoffel(g_sphere, vars_sphere) };
     std::cout << to_str(gamma_sphere.to_str()) << '\n';
 
+    auto riemann_sphere{ Riemann(gamma_sphere, vars_sphere) };
+    std::cout << to_str(riemann_sphere.to_str()) << '\n';
 
-    double R{ 1.0 }, A{};
+    double R{ 1.0 }, A{ 0.5 }, B{};
     struct eval_context
     {
         double& r;
         double& a;
+        double& b;
         std::array<double, 4> out{};
 
-        eval_context(double& r, double& a)
-            : r{ r }, a{ a }
+        eval_context(double& r, double& a, double& b)
+            : r{ r }, a{ a }, b{ b }
         {
         }
 
@@ -156,7 +184,7 @@ int main()
         {
             switch (v.n)
             {
-            case 'r':
+            case 'R':
                 return r;
             case 'a':
                 return a;
@@ -167,27 +195,32 @@ int main()
         {
         }
     };
-    eval_context ctx{ R, A };
+    eval_context ctx{ R, A, B };
 
     auto Gamma{ Christoffel(g, vars) };
     std::cout << to_str(Gamma.to_str()) << '\n';
+
+    auto riemann_polar{ Riemann(Gamma, vars) };
+    std::cout << to_str(riemann_polar.to_str()) << '\n';
 
 
     double v[2]{ 0.0, 0.2 };
     double a[2];
 
+    auto G{ gamma_sphere };
+
     for (int p{}; p < 10000000; p++)
     {
-        double tdelta = 1e-6;
+        double tdelta = 1e-4;
         std::array<std::array<std::array<double, D>, D>, D> gamma_val;
-        gamma_val[0][0][0] = I<0>(I<0>(I<0>(Gamma))).eval(ctx);
-        gamma_val[1][0][0] = I<0>(I<0>(I<1>(Gamma))).eval(ctx);
-        gamma_val[0][1][0] = I<0>(I<1>(I<0>(Gamma))).eval(ctx);
-        gamma_val[1][1][0] = I<0>(I<1>(I<1>(Gamma))).eval(ctx);
-        gamma_val[0][0][1] = I<1>(I<0>(I<0>(Gamma))).eval(ctx);
-        gamma_val[1][0][1] = I<1>(I<0>(I<1>(Gamma))).eval(ctx);
-        gamma_val[0][1][1] = I<1>(I<1>(I<0>(Gamma))).eval(ctx);
-        gamma_val[1][1][1] = I<1>(I<1>(I<1>(Gamma))).eval(ctx);
+        gamma_val[0][0][0] = I<0>(I<0>(I<0>(G))).eval(ctx);
+        gamma_val[1][0][0] = I<0>(I<0>(I<1>(G))).eval(ctx);
+        gamma_val[0][1][0] = I<0>(I<1>(I<0>(G))).eval(ctx);
+        gamma_val[1][1][0] = I<0>(I<1>(I<1>(G))).eval(ctx);
+        gamma_val[0][0][1] = I<1>(I<0>(I<0>(G))).eval(ctx);
+        gamma_val[1][0][1] = I<1>(I<0>(I<1>(G))).eval(ctx);
+        gamma_val[0][1][1] = I<1>(I<1>(I<0>(G))).eval(ctx);
+        gamma_val[1][1][1] = I<1>(I<1>(I<1>(G))).eval(ctx);
 
         a[0] = 0;
         a[1] = 0;
@@ -196,8 +229,8 @@ int main()
                 for (int k{}; k < D; ++k)
                     a[i] += -gamma_val[i][j][k] * v[j] * v[k];
 
-        R += tdelta * v[0];
-        A += tdelta * v[1];
+        A += tdelta * v[0];
+        B += tdelta * v[1];
 
         v[0] += tdelta * a[0];
         v[1] += tdelta * a[1];
@@ -205,6 +238,6 @@ int main()
         auto x{ R * cos(A) };
         auto y{ R * sin(A) };
         if(p % 100 == 0)
-            std::cout << "X: " << x << " Y: " << y << '\n';
+            std::cout << "A: " << A << " B: " << B << '\n';
     }
 }
