@@ -769,6 +769,12 @@ namespace symb
         return ProdExpr<LHS, RHS, Ix>{};
     }
 
+    template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
+    auto operator /(LHS lhs, RHS rhs)
+    {
+        return ProdExpr<LHS, PowerExpr<RHS, -1, Ix>, Ix>{};
+    }
+
     template<scalar val>
     constexpr Constant<val> c{};
 

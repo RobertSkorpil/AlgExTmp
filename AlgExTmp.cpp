@@ -7,75 +7,6 @@
 #include "symb.h"
 #include "str.h"
 
-template<size_t i, size_t j, size_t k>
-constexpr auto perm_sign3_3()
-{
-    using namespace symb;
-    constexpr double sign{ [&]() constexpr {
-        double s = -1.0;
-        if constexpr (i == j || j == k || i == k)
-            return 0.0;
-        if constexpr (j < i)
-            s *= -1;
-        if constexpr (k < j)
-            s *= -1;
-        if constexpr (k < i)
-            s *= -1;
-        return s;
-    }() };
-
-    return Constant<sign>{};
-}
-
-template<size_t i, size_t j>
-constexpr auto perm_sign3_2()
-{
-    using namespace symb;
-    return arr(perm_sign3_3<i, j, 0>(), perm_sign3_3<i, j, 1>(), perm_sign3_3<i, j, 2>());
-}
-
-template<size_t i>
-constexpr auto perm_sign3_1()
-{
-    using namespace symb;
-    return arr(perm_sign3_2<i, 0>(), perm_sign3_2<i, 1>(), perm_sign3_2<i, 2>());
-}
-
-constexpr auto perm_sign3()
-{
-    using namespace symb;
-    return arr(perm_sign3_1<0>(), perm_sign3_1<1>(), perm_sign3_1<2>());
-}
-
-template<size_t i, size_t j>
-constexpr auto perm_sign2_2()
-{
-    using namespace symb;
-    constexpr double sign{ [&]() constexpr {
-        if constexpr (i == j)
-            return 0.0;
-        if constexpr (j < i)
-            return 1.0;
-        else
-            return -1.0;
-    }() };
-
-    return Constant<sign>{};
-}
-
-template<size_t i>
-constexpr auto perm_sign2_1()
-{
-    using namespace symb;
-    return arr(perm_sign2_2<i, 0>(), perm_sign2_2<i, 1>());
-}
-
-constexpr auto perm_sign2()
-{
-    using namespace symb;
-    return arr(perm_sign2_1<0>(), perm_sign2_1<1>());
-}
-
 template<size_t... I>
 constexpr double perm_sign()
 {
@@ -215,22 +146,12 @@ constexpr auto matrix_inverse(MatrixT matrix)
     return simplify(matrix_inverse1<0, D>(matrix, det_i));
 }
 
-template<symb::Expr M>
-constexpr auto inverse2(M m)
-{
-    using namespace symb;
-    auto p2{ perm_sign2() };
-    auto det_g{ Sum<'a', 2>(Sum<'b', 2>(Ix<'a'>(Ix<'b'>(p2)) * Ix<'a'>(I<0>(m)) * Ix<'b'>(I<1>(m)))) };
-    auto i{ Inv(det_g) };
-    return simplify(arr(arr(i * I<1>(I<1>(m)), i * -I<1>(I<0>(m))), arr(i * -I<0>(I<1>(m)), i * I<0>(I<0>(m)))));
-}
-
 template<symb::Expr MetricT, symb::Expr Vars>
 constexpr auto Christoffel(MetricT g, Vars vars)
 {
     using namespace symb;
     constexpr auto D{ g.size() };
-    auto ginv{ inverse2(g) };
+    auto ginv{ matrix_inverse(g) };
     return For<'i', D>(For<'k', D>(For<'l', D>(Sum<'m', D>(
         c<0.5> * Ix<'i'>(Ix<'m'>(ginv)) *
     (d(Ix<'k'>(Ix<'m'>(g))) / d(Ix<'l'>(vars)) + d(Ix<'l'>(Ix<'m'>(g))) / d(Ix<'k'>(vars)) - d(Ix<'l'>(Ix<'k'>(g))) / d(Ix<'m'>(vars)))))));
@@ -250,12 +171,38 @@ constexpr auto Riemann(ChristoffelT G, Vars vars)
     ))));
 }
 
+void schwarzschild()
+{
+    using namespace symb;
+    auto one{ c<1.0> };
+    auto nul{ c<0.0> };
+    auto C{ v<'c'> };
+    auto t{ v<'t'> };
+    auto r{ v<'r'> };
+    auto theta{ v<u'Θ'> };
+    auto phi{ v<u'φ'> };
+
+    auto vars{ arr(t, r, theta, phi) };
+
+    auto rs{ c<2.0> * v<'M'> };
+    auto g{ arr(arr(-(one - rs / r), nul, nul, nul), arr(nul, one / (one - rs / r), nul, nul), arr(nul, nul, r * r, nul), arr(nul, nul, nul, r * r * Sin(theta) * Sin(theta))) };
+
+    auto G{ Christoffel(g, vars) };
+    auto R{ Riemann(G, vars) };
+
+    std::cout << "Metric: \n" << to_str(g.to_str()) << '\n';
+    std::cout << "Γ:      \n" << to_str(G.to_str()) << '\n';
+    std::cout << "R:      \n" << to_str(R.to_str()) << '\n';
+}
+
+
 int main()
 {
     SetConsoleOutputCP(CP_UTF8);
 
-    using namespace symb;
-    
+    schwarzschild();
+
+#if 0
 //    auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>, v<'d'>, v<'e'>), arr(v<'f'>, v<'g'>, v<'h'>, v<'i'>, v<'j'>), arr(v<'k'>, v<'l'>, v<'m'>, v<'n'>, v<'o'>), arr(v<'p'>, v<'q'>, v<'r'>, v<'s'>, v<'t'>), arr(v<'u'>, v<'v'>, v<'w'>, v<'x'>, v<'y'>)) };
     auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>, v<'d'>), arr(v<'e'>, v<'f'>, v<'g'>, v<'h'>), arr(v<'i'>, v<'j'>, v<'k'>, v<'l'>), arr(v<'m'>, v<'n'>, v<'o'>, v<'p'>)) };
 //    auto matrix{ arr(arr(v<'a'>, c<0.0>, c<0.0>, c<0.0>), arr(c<0.0>, v<'f'>, c<0.0>, c<0.0>), arr(c<0.0>, c<0.0>, v<'k'>, c<0.0>), arr(c<0.0>, c<0.0>, c<0.0>, v<'p'>)) };
@@ -394,5 +341,6 @@ int main()
         if(p % 100 == 0)
             std::cout << "A: " << A << " B: " << B << '\n';
     }
+#endif
 #endif
 }
