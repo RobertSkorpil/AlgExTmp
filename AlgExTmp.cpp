@@ -9,11 +9,11 @@
 #include "symb.h"
 #include "str.h"
 
-//#define MATRIX_INVERSE
-//#define SPHERE_SURFACE
-//#define SCHWARZSCHILD
-//#define SCHWARZSHILD_RIEMANN
-//#define POLAR
+#define MATRIX_INVERSE
+#define SPHERE_SURFACE
+#define SCHWARZSCHILD
+#define SCHWARZSCHILD_RIEMANN
+#define POLAR
 
 template<size_t... I>
 constexpr double perm_sign()

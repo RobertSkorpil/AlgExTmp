@@ -1295,25 +1295,6 @@ namespace symb
         using expr_t = ProdExpr<PowerExpr<E, Power1 + Power2>, RHS>;
     };
 
-#if 0
-    template<Expr ProdLHS, Expr ProdRHS, IndexAssignment Ix>
-    struct simplify_t<SumExpr<ProdExpr<ProdLHS, ProdRHS, Ix>, ProdExpr<ProdRHS, ProdLHS, Ix>, Ix>>
-    {
-        using slhs = simplify_t<ProdLHS>::expr_t;
-        using srhs = simplify_t<ProdRHS>::expr_t;
-        using expr_t = simplify_t<SumExpr<ProdExpr<slhs, srhs, Ix>, ProdExpr<slhs, srhs, Ix>, Ix>>::expr_t;
-    };
-
-    template<Expr A, Expr B, IndexAssignment Ix>
-    struct simplify_t<ProdExpr<SumExpr<A, B, Ix>, SumExpr<A, B, Ix>, Ix>>
-    {
-        using sa = simplify_t<A>::expr_t;
-        using sb = simplify_t<B>::expr_t;
-
-        using expr_t = SumExpr<SumExpr<ProdExpr<sa, sa, Ix>, ProdExpr<sb, sb, Ix>>, ProdExpr<Constant<2.0>, SumExpr<sa, sb, Ix>, Ix>, Ix>;
-    };
-#endif
-
     template<scalar a, Expr C, Expr D>
     struct simplify_t<ProdExpr<Constant<a>, SumExpr<C, D>>>
     {
@@ -1325,14 +1306,6 @@ namespace symb
     {
         using expr_t = SumExpr<SumExpr<ProdExpr<A, C>, ProdExpr<A, D>>, SumExpr<ProdExpr<B, C>, ProdExpr<B, D>>>;
     };
-
-#if 0
-    template<NonConstant A, NonConstant B, NonConstant C, NonConstant D>
-    struct simplify_t<ProdExpr<SumExpr<A, B>, ProdExpr<C, D>>>
-    {
-        using expr_t = SumExpr<ProdExpr<A, ProdExpr<C, D>>, ProdExpr<B, ProdExpr<C, D>>>;
-    };
-#endif
 
     template<typename f, Expr ArgExpr, IndexAssignment Ix>
     struct simplify_t<FuncExpr<f, ArgExpr, Ix>>
@@ -1376,14 +1349,6 @@ namespace symb
         using expr_t = OneExpr;
     };
 
-#if 0
-    template<VarExp S, int Power>
-    struct simplify_t<ProdExpr<S, PowerExpr<S, Power>>>
-    {
-        using expr_t = PowerExpr<S, 1 + Power>;
-    };
-#endif
-
     template<int Power, Expr LHS, Expr RHS>
     struct simplify_t<PowerExpr<ProdExpr<LHS, RHS>, Power>>
     {
@@ -1396,11 +1361,13 @@ namespace symb
         using expr_t = Constant<1.0 / a>;
     };
 
+#ifndef __GNUC__ //causes GCC to ICE?
     template<NonConstant ExprT>
     struct simplify_t<ProdExpr<ExprT, ZeroExpr>>
     {
         using expr_t = ZeroExpr;
     };
+#endif
 
     template<Expr ExprT>
     constexpr auto simplify_index(ExprT expr)
