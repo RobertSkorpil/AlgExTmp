@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for AlgExTmp, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.25)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -16,8 +16,6 @@ add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 # Add source to this project's executable.
 add_executable (AlgExTmp "AlgExTmp.cpp"  "symb.h" "str.h" "str.cpp" "symb.cpp")
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET AlgExTmp PROPERTY CXX_STANDARD 20)
-endif()
+set_property(TARGET AlgExTmp PROPERTY CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 
 # TODO: Add tests and install targets if needed.

@@ -1,8 +1,10 @@
 ﻿#include <iostream>
 #include <locale>
+#ifdef WIN32
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
+#endif
 #include <array>
 #include "symb.h"
 #include "str.h"
@@ -267,7 +269,9 @@ namespace {
 
 int main()
 {
+#ifdef WIN32
     SetConsoleOutputCP(CP_UTF8);
+#endif
 
     matrix_inverse_3();
 

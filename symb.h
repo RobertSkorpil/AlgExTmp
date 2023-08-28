@@ -722,7 +722,7 @@ namespace symb
     struct is_power_expr<PowerExpr<ExprT, Power, Ix>> : std::true_type {};
 
     template<Expr ExprT, int power>
-    constexpr size_t hash<PowerExpr<ExprT, power>> = hash<ExprT>{};
+    constexpr size_t hash<PowerExpr<ExprT, power>> = hash<ExprT>;
 
     template<typename F, Expr ArgExpr, IndexAssignment Ix>
     constexpr size_t hash<FuncExpr<F, ArgExpr, Ix>> = FuncExpr<F, ArgExpr, Ix>::hash();
