@@ -7,10 +7,10 @@
 #include "symb.h"
 #include "str.h"
 
-//#define SPHERE_SURFACE
+#define SPHERE_SURFACE
 #define SCHWARZSCHILD
 //#define SCHWARZSHILD_RIEMANN
-//#define POLAR
+#define POLAR
 
 template<size_t... I>
 constexpr double perm_sign()
@@ -253,11 +253,23 @@ namespace {
         std::cout << "R:      \n" << to_str(R.to_str()) << '\n';
     }
 #endif
+
+    void matrix_inverse_3()
+    {  
+        using namespace symb;
+        auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>), arr(v<'d'>, v<'e'>, v<'f'>), arr(v<'g'>, v<'h'>, v<'i'>)) };
+        auto inverse{ matrix_inverse(matrix) };
+
+        std::cout << to_str(inverse.to_str()) << '\n';
+    }
 }
+
 
 int main()
 {
     SetConsoleOutputCP(CP_UTF8);
+
+    matrix_inverse_3();
 
 #ifdef SCHWARZSCHILD
     schwarzschild();
