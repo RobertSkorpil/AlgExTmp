@@ -721,6 +721,9 @@ namespace symb
     template<Expr ExprT, int Power, IndexAssignment Ix>
     struct is_power_expr<PowerExpr<ExprT, Power, Ix>> : std::true_type {};
 
+    template<Expr ExprT, int power>
+    constexpr size_t hash<PowerExpr<ExprT, power>> = hash<ExprT>{};
+
     template<typename F, Expr ArgExpr, IndexAssignment Ix>
     constexpr size_t hash<FuncExpr<F, ArgExpr, Ix>> = FuncExpr<F, ArgExpr, Ix>::hash();
 
@@ -1172,6 +1175,12 @@ namespace symb
         using expr_t = ProdExpr<Constant<s + 1>, typename simplify_t<Sumand>::expr_t, Ix>;
     };
 
+    template<scalar s, scalar s2, NonConstant Sumand>
+    struct simplify_t<SumExpr<ProdExpr<Constant<s>, Sumand>, ProdExpr<Constant<s2>, Sumand>>>
+    {
+        using expr_t = ProdExpr<Constant<s + s2>, typename simplify_t<Sumand>::expr_t>;
+    };
+
     template<scalar a, scalar b, NonConstant RRHS>
     struct simplify_t<ProdExpr<Constant<a>, ProdExpr<Constant<b>, RRHS>/*, std::enable_if_t<a - b != 0, no_index*/>>
     {
@@ -1227,6 +1236,12 @@ namespace symb
     };
 
     template<Expr E, int Power>
+    struct simplify_t<ProdExpr<E, PowerExpr<E, Power>>>
+    {
+        using expr_t = PowerExpr<E, Power + 1>;
+    };
+
+    template<Expr E, int Power>
     struct simplify_t<ProdExpr<PowerExpr<E, Power>, E>>
     {
         using expr_t = PowerExpr<E, Power + 1>;
@@ -1234,6 +1249,12 @@ namespace symb
 
     template<NonConstant E, int Power, NonConstant RHS>
     struct simplify_t<ProdExpr<PowerExpr<E, Power>, ProdExpr<E, RHS>>>
+    {
+        using expr_t = ProdExpr<PowerExpr<E, Power + 1>, RHS>;
+    };
+
+    template<NonConstant E, int Power, NonConstant RHS>
+    struct simplify_t<ProdExpr<E, ProdExpr<PowerExpr<E, Power>, RHS>>>
     {
         using expr_t = ProdExpr<PowerExpr<E, Power + 1>, RHS>;
     };
@@ -1256,7 +1277,7 @@ namespace symb
         using expr_t = PowerExpr<E, -Power>;
     };
 
-    template<VarExp E>
+    template<Expr E>
     struct simplify_t<FuncExpr<inv_t, E>>
     {
         using expr_t = PowerExpr<E, -1>;
@@ -1291,18 +1312,19 @@ namespace symb
 
         using expr_t = SumExpr<SumExpr<ProdExpr<sa, sa, Ix>, ProdExpr<sb, sb, Ix>>, ProdExpr<Constant<2.0>, SumExpr<sa, sb, Ix>, Ix>, Ix>;
     };
-
-    template<Expr A, Expr B, Expr C, Expr D, IndexAssignment Ix>
-    struct simplify_t<ProdExpr<SumExpr<A, B, Ix>, SumExpr<C, D, Ix>, Ix>>
-    {
-        using sa = simplify_t<A>::expr_t;
-        using sb = simplify_t<B>::expr_t;
-        using sc = simplify_t<C>::expr_t;
-        using sd = simplify_t<D>::expr_t;
-
-        using expr_t = SumExpr<SumExpr<ProdExpr<sa, sc, Ix>, ProdExpr<sa, sd, Ix>>, SumExpr<ProdExpr<sb, sc, Ix>, ProdExpr<sb, sd, Ix>, Ix>, Ix>;
-    };
 #endif 0
+
+    template<scalar a, Expr C, Expr D>
+    struct simplify_t<ProdExpr<Constant<a>, SumExpr<C, D>>>
+    {
+        using expr_t = SumExpr<ProdExpr<Constant<a>, C>, ProdExpr<Constant<a>, D>>;
+    };
+
+    template<Expr A, Expr B, Expr C, Expr D>
+    struct simplify_t<ProdExpr<SumExpr<A, B>, SumExpr<C, D>>>
+    {
+        using expr_t = SumExpr<SumExpr<ProdExpr<A, C>, ProdExpr<A, D>>, SumExpr<ProdExpr<B, C>, ProdExpr<B, D>>>;
+    };
 
     template<typename f, Expr ArgExpr, IndexAssignment Ix>
     struct simplify_t<FuncExpr<f, ArgExpr, Ix>>
@@ -1346,11 +1368,13 @@ namespace symb
         using expr_t = OneExpr;
     };
 
+#if 0
     template<VarExp S, int Power>
     struct simplify_t<ProdExpr<S, PowerExpr<S, Power>>>
     {
         using expr_t = PowerExpr<S, 1 + Power>;
     };
+#endif
 
     template<scalar a, int Power, Expr ExprT>
     struct simplify_t<PowerExpr<ProdExpr<Constant<a>, ExprT>, Power>>

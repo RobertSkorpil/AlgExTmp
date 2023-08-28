@@ -7,6 +7,11 @@
 #include "symb.h"
 #include "str.h"
 
+//#define SPHERE_SURFACE
+#define SCHWARZSCHILD
+//#define SCHWARZSHILD_RIEMANN
+//#define POLAR
+
 template<size_t... I>
 constexpr double perm_sign()
 {
@@ -153,7 +158,7 @@ constexpr auto Christoffel(MetricT g, Vars vars)
     constexpr auto D{ g.size() };
     auto ginv{ matrix_inverse(g) };
     return For<'i', D>(For<'k', D>(For<'l', D>(Sum<'m', D>(
-        c<0.5> * Ix<'i'>(Ix<'m'>(ginv)) *
+        c<1.0> / c<2.0> * Ix<'i'>(Ix<'m'>(ginv)) *
     (d(Ix<'k'>(Ix<'m'>(g))) / d(Ix<'l'>(vars)) + d(Ix<'l'>(Ix<'m'>(g))) / d(Ix<'k'>(vars)) - d(Ix<'l'>(Ix<'k'>(g))) / d(Ix<'m'>(vars)))))));
 }
 
@@ -171,36 +176,100 @@ constexpr auto Riemann(ChristoffelT G, Vars vars)
     ))));
 }
 
-void schwarzschild()
-{
-    using namespace symb;
-    auto one{ c<1.0> };
-    auto nul{ c<0.0> };
-    auto C{ v<'c'> };
-    auto t{ v<'t'> };
-    auto r{ v<'r'> };
-    auto theta{ v<u'Θ'> };
-    auto phi{ v<u'φ'> };
+namespace {
+#ifdef SCHWARZSCHILD
+    void schwarzschild()
+    {
+        using namespace symb;
+        auto one{ c<1.0> };
+        auto nul{ c<0.0> };
+        auto C{ v<'c'> };
+        auto t{ v<'t'> };
+        auto r{ v<'r'> };
+        auto theta{ v<u'Θ'> };
+        auto phi{ v<u'φ'> };
 
-    auto vars{ arr(t, r, theta, phi) };
+        auto vars{ arr(t, r, theta, phi) };
 
-    auto rs{ c<2.0> * v<'M'> };
-    auto g{ arr(arr(-(one - rs / r), nul, nul, nul), arr(nul, one / (one - rs / r), nul, nul), arr(nul, nul, r * r, nul), arr(nul, nul, nul, r * r * Sin(theta) * Sin(theta))) };
+        auto rs{ c<2.0> *v<'M'> };
 
-    auto G{ Christoffel(g, vars) };
-    auto R{ Riemann(G, vars) };
+        auto g{ arr(arr(-(one - rs / r), nul, nul, nul), arr(nul, one / (one - rs / r), nul, nul), arr(nul, nul, r * r, nul), arr(nul, nul, nul, r * r * Sin(theta) * Sin(theta))) };
+        auto G{ Christoffel(g, vars) };
 
-    std::cout << "Metric: \n" << to_str(g.to_str()) << '\n';
-    std::cout << "Γ:      \n" << to_str(G.to_str()) << '\n';
-    std::cout << "R:      \n" << to_str(R.to_str()) << '\n';
+        std::cout << "Metric: \n" << to_str(g.to_str()) << '\n';
+        std::cout << "Γ:      \n" << to_str(G.to_str()) << '\n';
+
+#ifdef SCHWARZSCHILD_RIEMANN
+        auto R{ Riemann(G, vars) };
+        std::cout << "R:      \n" << to_str(R.to_str()) << '\n';
+#endif
+    }
+#endif
+
+#ifdef POLAR
+    void polar()
+    {
+        using namespace symb;
+        auto r{ v<'r'> };
+        auto a{ v<'a'> };
+
+        auto vars{ arr(r, a) };
+
+        auto map{ arr(r * Cos(a), r * Sin(a)) };
+
+        constexpr auto D{ vars.size() };
+
+        //Jacobian
+        auto J{ For<'v', D>(For<'u', D>(d(Ix<'v'>(map)) / d(Ix<'u'>(vars)))) };
+
+        auto g{ For<'a', D>(For<'b', D>(Sum<'c', D>((Ix<'a'>(Ix<'c'>(J)) * Ix<'b'>(Ix<'c'>(J)))))) };
+        auto G{ Christoffel(g, vars) };
+        auto R{ Riemann(G, vars) };
+
+        std::cout << "Metric: \n" << to_str(g.to_str()) << '\n';
+        std::cout << "Γ:      \n" << to_str(G.to_str()) << '\n';
+        std::cout << "R:      \n" << to_str(R.to_str()) << '\n';
+    }
+#endif
+
+#ifdef SPHERE_SURFACE
+    void sphere_surface()
+    {
+        using namespace symb;
+        auto nul{ c<0.0> };
+
+        auto a{ v<'a'> }; //longitude
+        auto b{ v<'b'> }; //lattitude
+        auto r{ v<'r'> };
+
+        auto vars{ arr(a, b) };
+
+        auto g{ arr(arr(r * r, nul), arr(nul, r * r * Sin(a) * Sin(a))) };
+        auto G{ Christoffel(g, vars) };
+        auto R{ Riemann(G, vars) };
+
+        std::cout << "Metric: \n" << to_str(g.to_str()) << '\n';
+        std::cout << "Γ:      \n" << to_str(G.to_str()) << '\n';
+        std::cout << "R:      \n" << to_str(R.to_str()) << '\n';
+    }
+#endif
 }
-
 
 int main()
 {
     SetConsoleOutputCP(CP_UTF8);
 
+#ifdef SCHWARZSCHLD
     schwarzschild();
+#endif
+
+#ifdef POLAR
+    polar();
+#endif
+
+#ifdef SPHERE_SURFACE
+    sphere_surface();
+#endif
 
 #if 0
 //    auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>, v<'d'>, v<'e'>), arr(v<'f'>, v<'g'>, v<'h'>, v<'i'>, v<'j'>), arr(v<'k'>, v<'l'>, v<'m'>, v<'n'>, v<'o'>), arr(v<'p'>, v<'q'>, v<'r'>, v<'s'>, v<'t'>), arr(v<'u'>, v<'v'>, v<'w'>, v<'x'>, v<'y'>)) };

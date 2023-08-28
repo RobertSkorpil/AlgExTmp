@@ -10,6 +10,8 @@ if (POLICY CMP0141)
 endif()
 
 project ("AlgExTmp")
+add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 # Add source to this project's executable.
 add_executable (AlgExTmp "AlgExTmp.cpp"  "symb.h" "str.h" "str.cpp" "symb.cpp")
