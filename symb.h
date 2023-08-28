@@ -781,8 +781,15 @@ namespace symb
     template<scalar val>
     constexpr Constant<val> c{};
 
+    template<char16_t vr, size_t ix>
+    constexpr auto make_v()
+    {
+        constexpr var v{ vr, ix };
+        return VarExpr<v>{};
+    }
+
     template<char16_t vr, size_t ix = std::numeric_limits<size_t>::max()>
-    constexpr VarExpr<vr> v{};
+    constexpr auto v { make_v<vr, ix>() };
 
     constexpr nothing make_array() {
         return {};
@@ -1496,12 +1503,4 @@ namespace symb
             return true;
         }
     }
-
-#if 0
-    template<var d, Expr ExprT>
-    auto diff(ExprT expr)
-    {
-        return simplify(typename ExprT::template diff_t<d>{});
-    }
-#endif
 }

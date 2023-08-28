@@ -11,9 +11,10 @@
 
 //#define MATRIX_INVERSE
 //#define SPHERE_SURFACE
-#define SCHWARZSCHILD
+//#define SCHWARZSCHILD
 //#define SCHWARZSCHILD_RIEMANN
 //#define POLAR
+#define KERR
 
 template<size_t... I>
 constexpr double perm_sign()
@@ -206,55 +207,38 @@ namespace {
         auto R{ Riemann(G, vars) };
         std::cout << "R:      \n" << to_str(R.to_str()) << '\n';
 #endif
-      double T{}, R{}, Theta{}, Phi{};
-      double V[4] {{}};
-      struct eval_context
-      {
-          double T{}, R{}, Theta{}, Phi{};
-          std::array<double, 4> out{};
+    }
+#endif
 
-          auto var_value(const var& v, std::optional<size_t> index) const
-          {
-              switch (v.n)
-              {
-              case 't':
-                  return T;
-              case 'r':
-                  return R;
-              case u'Θ':
-                  return Theta;
-              case u'φ':
-                  return Phi;
-              case 'M':
-                  return 1.0;
-              default:
-                  return 0.0;
-              }
-          }
-      };
-      eval_context ctx;
-      for (int p{}; p < 10000000; p++)
-      {
-          constexpr auto D { vars.size() };
-          double tdelta = 1e-4;
-          std::array<std::array<std::array<double, D>, D>, D> gamma_val;
-          gamma_val[0][0][0] = I<0>(I<0>(I<0>(G))).eval(ctx);
-          gamma_val[1][0][0] = I<0>(I<0>(I<1>(G))).eval(ctx);
-          gamma_val[0][1][0] = I<0>(I<1>(I<0>(G))).eval(ctx);
-          gamma_val[1][1][0] = I<0>(I<1>(I<1>(G))).eval(ctx);
-          gamma_val[0][0][1] = I<1>(I<0>(I<0>(G))).eval(ctx);
-          gamma_val[1][0][1] = I<1>(I<0>(I<1>(G))).eval(ctx);
-          gamma_val[0][1][1] = I<1>(I<1>(I<0>(G))).eval(ctx);
-          gamma_val[1][1][1] = I<1>(I<1>(I<1>(G))).eval(ctx);
+#ifdef KERR
+    void kerr()
+    {
+        using namespace symb;
 
-          double a[4] {{}};
-          for (int i{}; i < D; ++i)
-              for (int j{}; j < D; ++j)
-                  for (int k{}; k < D; ++k)
-                      a[i] += -gamma_val[i][j][k] * V[j] * V[k];
+        auto t{ v<'t'> };
+        auto r{ v<'r'> };
+        auto theta{ v<u'Θ'> };
+        auto phi{ v<u'φ'> };
 
-          std::cout << "A: " << a[0] << '\n';
-      }
+        auto M{ v<'M'> };
+        auto _0{ c<0.0> };
+        auto _1{ c<1.0> };
+        auto _2{ c<2.0> };
+        auto a{ v<'J'> / (_2 * M) };
+        auto S{ r * r + a * a * Cos(theta) * Cos(theta) };
+        auto D{ r * r - _2 * M * r + a * a };
+        auto g{ arr(
+            arr(-(_1 - _2 * M * r / S), _0, _0, -_2 * r / S * a * Sin(theta) * Sin(theta)),
+            arr(_0, S / D, _0, _0),
+            arr(_0, _0, S, _0),
+            arr(-_2 * M * r / S * a * Sin(theta) * Sin(theta), _0, _0, (r * r + a * a + _2 * M * r * a * a / S * Sin(theta) * Sin(theta)) * Sin(theta) * Sin(theta))
+        ) };
+
+        auto vars{ arr(t, r, theta, phi) };
+        auto G{ Christoffel(g, vars) };
+
+        std::cout << "Metric: \n" << to_str(g.to_str()) << '\n';
+        std::cout << "Γ:      \n" << to_str(G.to_str()) << '\n';
     }
 #endif
 
@@ -339,6 +323,10 @@ int main()
 
 #ifdef SPHERE_SURFACE
     sphere_surface();
+#endif
+
+#ifdef KERR
+    kerr();
 #endif
 
 #if 0
