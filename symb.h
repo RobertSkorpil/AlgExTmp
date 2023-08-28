@@ -1,4 +1,5 @@
-﻿#include <type_traits>
+﻿#pragma once
+#include <type_traits>
 #include <string>
 #include <optional>
 #include <algorithm>
@@ -366,6 +367,12 @@ namespace symb
         static void INLINE eval(const Valuation& ctx)
         {}
 
+        template<typename Valuation>
+        static double * eval_array(const Valuation& ctx, double * out)
+        {
+            return out;
+        }
+
         static std::u16string to_str()
         {
             return {};
@@ -382,7 +389,17 @@ namespace symb
         }
     };
 
+
+    template<typename T>
+    struct is_array : std::false_type {};
+
     template<Action Act, Action Next = nothing, IndexAssignment Ix = no_index>
+    struct Array;
+
+    template<Action Act, Action Next, IndexAssignment Ix>
+    struct is_array<Array<Act, Next, Ix>> : std::true_type{};
+
+    template<Action Act, Action Next, IndexAssignment Ix>
     struct Array
     {
         static constexpr auto non_power{ true };
@@ -397,6 +414,18 @@ namespace symb
         {
             Act::eval(ctx);
             Next::eval(ctx);
+        }
+
+        template<typename Valuation>
+        static double * eval_array(const Valuation& ctx, double *out)
+        {
+            if constexpr (is_array<Act>{})
+                out = Act::eval_array(ctx, out);
+            else
+                *out++ = Act::eval(ctx);
+
+            out = Next::eval_array(ctx, out);
+            return out;
         }
 
         template<VarExp D>
@@ -423,12 +452,6 @@ namespace symb
             return 1 + Next::size();
         }
     };
-
-    template<typename T>
-    struct is_array : std::false_type {};
-
-    template<Action Act, Action Next, IndexAssignment Ix>
-    struct is_array<Array<Act, Next, Ix>> : std::true_type{};
 
     template<var v, IndexAssignment Ix>
     template<Expr RHS>
@@ -749,31 +772,31 @@ namespace symb
     struct is_func_expr<FuncExpr<F, ArgExpr, Ix>> : std::true_type {};
 
     template<Expr ExprT, IndexAssignment Ix = no_index>
-    auto operator -(ExprT expr)
+    constexpr auto operator -(ExprT expr)
     {
         return ProdExpr<Constant<-1.0>, ExprT, Ix>{};
     }
 
     template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
-    auto operator -(LHS lhs, RHS rhs)
+    constexpr auto operator -(LHS lhs, RHS rhs)
     {
         return SumExpr<LHS, ProdExpr<Constant<-1.0>, RHS, Ix>, Ix>{};
     }
 
     template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
-    auto operator +(LHS lhs, RHS rhs)
+    constexpr auto operator +(LHS lhs, RHS rhs)
     {
         return SumExpr<LHS, RHS, Ix>{};
     }
 
     template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
-    auto operator *(LHS lhs, RHS rhs)
+    constexpr auto operator *(LHS lhs, RHS rhs)
     {
         return ProdExpr<LHS, RHS, Ix>{};
     }
 
     template<Expr LHS, Expr RHS, IndexAssignment Ix = no_index>
-    auto operator /(LHS lhs, RHS rhs)
+    constexpr auto operator /(LHS lhs, RHS rhs)
     {
         return ProdExpr<LHS, PowerExpr<RHS, -1, Ix>, Ix>{};
     }

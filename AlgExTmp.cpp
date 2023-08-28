@@ -7,178 +7,19 @@
 #endif
 #include <array>
 #include "symb.h"
+#include "matrix.h"
+#include "riemann.h"
+#include "kerr.h"
 #include "str.h"
 
 //#define MATRIX_INVERSE
+//#define MATRIX_INVERSE_4
 //#define SPHERE_SURFACE
 //#define SCHWARZSCHILD
 //#define SCHWARZSCHILD_RIEMANN
 //#define POLAR
 #define KERR
 
-template<size_t... I>
-constexpr double perm_sign()
-{
-    constexpr std::array<size_t, sizeof...(I)> ix {{ I... }};
-
-    double sign{ 1 };
-    for (size_t i{}; i < ix.size(); ++i)
-        for (size_t j{ i + 1 }; j < ix.size(); ++j)
-            if (ix[j] > ix[i])
-                sign *= -1;
-            else if (ix[j] == ix[i])
-                return 0;
-
-    return sign;
-}
-
-template<size_t D, size_t... I>
-constexpr auto perm_tensor();
-
-template<size_t D, size_t i, size_t... I>
-constexpr auto perm_tensor_arr()
-{
-    using namespace symb;
-    if constexpr (i == D)
-        return nothing{};
-    else
-        return Array<decltype(perm_tensor<D, I..., i>()), decltype(perm_tensor_arr<D, i + 1, I...>())>{};
-}
-
-template<size_t D, size_t... I>
-constexpr auto perm_tensor()
-{
-    using namespace symb;
-    if constexpr (sizeof...(I) == D)
-        return Constant<perm_sign<I...>()>{};
-    else
-        return perm_tensor_arr<D, 0, I...>();
-}
-
-template<size_t i, size_t D, symb::Expr PermT>
-constexpr auto det_indexed_perm(PermT perm)
-{
-    if constexpr (i == D)
-        return perm;
-    else
-        return Ix<'a' + i>(det_indexed_perm<i + 1, D>(perm));
-}
-
-template<size_t i, symb::Expr MatrixT, symb::Expr PermT>
-constexpr auto det_indexed_factor(MatrixT matrix, PermT perm);
-
-template<size_t i, symb::Expr MatrixT, symb::Expr PermT>
-constexpr auto det_indexed_factor(MatrixT matrix, PermT perm)
-{
-    constexpr auto D{ MatrixT::size() };
-    using namespace symb;
-
-    if constexpr (i == D)
-        return det_indexed_perm<0, D>(perm);
-    else
-        return Ix<'a' + i>(I<i>(matrix)) * det_indexed_factor<i + 1>(matrix, perm);
-}
-
-template<size_t i, symb::Expr MatrixT, symb::Expr FactorT>
-constexpr auto det_sum(MatrixT matrix, FactorT factor);
-
-template<size_t i, symb::Expr MatrixT, symb::Expr FactorT>
-constexpr auto det_sum(MatrixT matrix, FactorT factor)
-{
-    constexpr auto D{ MatrixT::size() };
-    using namespace symb;
-
-    if constexpr (i == D)
-        return factor;
-    else
-        return Sum<'a' + i, D>(det_sum<i + 1>(matrix, factor));
-}
-
-template<symb::Expr MatrixT>
-constexpr auto matrix_determinant(MatrixT matrix)
-{
-    using namespace symb;
-    constexpr auto D{ MatrixT::size() };
-
-    if constexpr (D == 1)
-        return I<0>(I<0>(matrix));
-    else
-    {
-        auto perm{ perm_tensor<MatrixT::size()>() };
-        auto factor{ det_indexed_factor<0>(matrix, perm) };
-        return det_sum<0>(matrix, factor);
-    }
-}
-
-template<size_t i, size_t j, symb::Expr MatrixT>
-constexpr auto cofactor(MatrixT matrix)
-{
-    using namespace symb;
-    constexpr auto D{ MatrixT::size() };
-
-    return ForSkip<'i', D, i>(ForSkip<'j', D, j>(Ix<'i'>(Ix<'j'>(matrix))));
-}
-
-template<size_t i, size_t j, size_t D, symb::Expr MatrixT, symb::Expr DetT>
-constexpr auto matrix_inverse2(MatrixT matrix, DetT det_i);
-
-template<size_t i, size_t j, size_t D, symb::Expr MatrixT, symb::Expr DetT>
-constexpr auto matrix_inverse2(MatrixT matrix, DetT det_i)
-{
-    using namespace symb;
-    if constexpr (j == D)
-        return nothing{};
-    else
-        return Array<decltype(det_i *  matrix_determinant(cofactor<i, j>(matrix))), decltype(matrix_inverse2<i, j + 1, D>(matrix, det_i))>{};
-}
-
-template<size_t i, size_t D, symb::Expr MatrixT, symb::Expr DetT>
-constexpr auto matrix_inverse1(MatrixT matrix, DetT det_i);
-
-template<size_t i, size_t D, symb::Expr MatrixT, symb::Expr DetT>
-constexpr auto matrix_inverse1(MatrixT matrix, DetT det_i)
-{
-    using namespace symb;
-    if constexpr (i == D)
-        return nothing{};
-    else
-        return Array<decltype(matrix_inverse2<i, 0, D>(matrix, det_i)), decltype(matrix_inverse1<i + 1, D>(matrix, det_i))>{};
-}
-
-template<symb::Expr MatrixT>
-constexpr auto matrix_inverse(MatrixT matrix)
-{
-    using namespace symb;
-    auto det_i{ simplify(Inv(matrix_determinant(matrix))) };
-
-    constexpr auto D{ MatrixT::size() };
-    return simplify(matrix_inverse1<0, D>(matrix, det_i));
-}
-
-template<symb::Expr MetricT, symb::Expr Vars>
-constexpr auto Christoffel(MetricT g, Vars vars)
-{
-    using namespace symb;
-    constexpr auto D{ g.size() };
-    auto ginv{ matrix_inverse(g) };
-    return For<'i', D>(For<'k', D>(For<'l', D>(Sum<'m', D>(
-        c<1.0> / c<2.0> * Ix<'i'>(Ix<'m'>(ginv)) *
-    (d(Ix<'k'>(Ix<'m'>(g))) / d(Ix<'l'>(vars)) + d(Ix<'l'>(Ix<'m'>(g))) / d(Ix<'k'>(vars)) - d(Ix<'l'>(Ix<'k'>(g))) / d(Ix<'m'>(vars)))))));
-}
-
-template<symb::Expr ChristoffelT, symb::Expr Vars>
-constexpr auto Riemann(ChristoffelT G, Vars vars)
-{
-    using namespace symb;
-    constexpr auto D{ G.size() };
-
-    return For<'a', D>(For<'b', D>(For<'c', D>(For<'d', D>(
-        d(Ix<'b'>(Ix<'d'>(Ix<'a'>(G)))) / d(Ix<'c'>(vars))
-      - d(Ix<'b'>(Ix<'c'>(Ix<'a'>(G)))) / d(Ix<'d'>(vars))
-      + Sum<'l', D>(Ix<'l'>(Ix<'c'>(Ix<'a'>(G))) * Ix<'b'>(Ix<'d'>(Ix<'l'>(G))))
-      - Sum<'l', D>(Ix<'l'>(Ix<'d'>(Ix<'a'>(G))) * Ix<'b'>(Ix<'c'>(Ix<'l'>(G))))
-    ))));
-}
 
 namespace {
 #ifdef SCHWARZSCHILD
@@ -211,34 +52,46 @@ namespace {
 #endif
 
 #ifdef KERR
-    void kerr()
+    void kerr_geodesic()
     {
-        using namespace symb;
+        double J{ 1. };
+        double M{ 1. };
+        auto G{ kerr(M, J) };
 
-        auto t{ v<'t'> };
-        auto r{ v<'r'> };
-        auto theta{ v<u'Θ'> };
-        auto phi{ v<u'φ'> };
+        double x[4] = {0., 3.0, 3.1415926536 / 2, 0 };
+        double v[4]= { 1., 0., 0., 0 };
 
-        auto M{ v<'M'> };
-        auto _0{ c<0.0> };
-        auto _1{ c<1.0> };
-        auto _2{ c<2.0> };
-        auto a{ v<'J'> / (_2 * M) };
-        auto S{ r * r + a * a * Cos(theta) * Cos(theta) };
-        auto D{ r * r - _2 * M * r + a * a };
-        auto g{ arr(
-            arr(-(_1 - _2 * M * r / S), _0, _0, -_2 * r / S * a * Sin(theta) * Sin(theta)),
-            arr(_0, S / D, _0, _0),
-            arr(_0, _0, S, _0),
-            arr(-_2 * M * r / S * a * Sin(theta) * Sin(theta), _0, _0, (r * r + a * a + _2 * M * r * a * a / S * Sin(theta) * Sin(theta)) * Sin(theta) * Sin(theta))
-        ) };
+        size_t cnt{};
+        for (;;)
+        {
+            double tdelta{ 1e-4 };
+            double a[4]{ {} };
 
-        auto vars{ arr(t, r, theta, phi) };
-        auto G{ Christoffel(g, vars) };
+            auto GV{ G(x[0], x[1], x[2], x[3]) };
+            for (int i{}; i < 4; ++i)
+                for (int j{}; j < 4; ++j)
+                    for (int k{}; k < 4; ++k)
+                        a[i] += (-GV[i][j][k] + GV[0][j][k] * v[i]) * v[j] * v[k];
 
-        std::cout << "Metric: \n" << to_str(g.to_str()) << '\n';
-        std::cout << "Γ:      \n" << to_str(G.to_str()) << '\n';
+            for (size_t i{}; i < 4; ++i)
+                x[i] += tdelta * v[i];
+
+            for (size_t i{}; i < 4; ++i)
+                v[i] += tdelta * a[i];
+
+            if (cnt % 100 == 0)
+            {
+                printf("X : [%4.4lf, %4.4lf, %4.4lf, %4.4lf]\t", x[0], x[1], x[2], x[3]);
+                printf("V : [%4.4lf, %4.4lf, %4.4lf, %4.4lf]\n", v[0], v[1], v[2], v[3]);
+            }
+
+            ++cnt;
+        }
+        /*for (size_t i{}; i < 4; ++i)
+            for (size_t j{}; j < 4; ++j)
+                for (size_t k{}; k < 4; ++k)
+                    std::cout << GV[i][j][k] << ", ";*/
+        std::cout << '\n';
     }
 #endif
 
@@ -297,6 +150,19 @@ namespace {
         auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>), arr(v<'d'>, v<'e'>, v<'f'>), arr(v<'g'>, v<'h'>, v<'i'>)) };
         auto inverse{ matrix_inverse(matrix) };
 
+        std::cout << to_str(matrix.to_str()) << '\n';
+        std::cout << to_str(inverse.to_str()) << '\n';
+    }                
+#endif
+
+#ifdef MATRIX_INVERSE_4
+    void matrix_inverse_4()
+    {  
+        using namespace symb;
+        auto matrix{ arr(arr(v<'a'>, v<'b'>, v<'c'>, v<'d'>), arr(v<'e'>, v<'f'>, v<'g'>, v<'h'>), arr(v<'i'>, v<'j'>, v<'k'>, v<'l'>), arr(v<'m'>, v<'n'>, v<'o'>, v<'p'>)) };
+        auto inverse{ matrix_inverse(matrix) };
+
+        std::cout << to_str(matrix.to_str()) << '\n';
         std::cout << to_str(inverse.to_str()) << '\n';
     }                
 #endif
@@ -313,6 +179,10 @@ int main()
     matrix_inverse_3();
 #endif
 
+#ifdef MATRIX_INVERSE_4
+    matrix_inverse_4();
+#endif
+
 #ifdef SCHWARZSCHILD
     schwarzschild();
 #endif
@@ -326,7 +196,7 @@ int main()
 #endif
 
 #ifdef KERR
-    kerr();
+    kerr_geodesic();
 #endif
 
 #if 0
