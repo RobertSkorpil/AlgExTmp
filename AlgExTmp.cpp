@@ -59,7 +59,7 @@ namespace {
         auto G{ kerr(M, J) };
 
         double x[4] = {0., 3.0, 3.1415926536 / 2, 0 };
-        double v[4]= { 1., 0., 0., 0 };
+        double v[4]= { 1., 0., 0., -0.12 };
 
         size_t cnt{};
         for (;;)
