@@ -9,11 +9,11 @@
 #include "symb.h"
 #include "str.h"
 
-#define MATRIX_INVERSE
-#define SPHERE_SURFACE
+//#define MATRIX_INVERSE
+//#define SPHERE_SURFACE
 #define SCHWARZSCHILD
-#define SCHWARZSCHILD_RIEMANN
-#define POLAR
+//#define SCHWARZSCHILD_RIEMANN
+//#define POLAR
 
 template<size_t... I>
 constexpr double perm_sign()
@@ -206,6 +206,55 @@ namespace {
         auto R{ Riemann(G, vars) };
         std::cout << "R:      \n" << to_str(R.to_str()) << '\n';
 #endif
+      double T{}, R{}, Theta{}, Phi{};
+      double V[4] {{}};
+      struct eval_context
+      {
+          double T{}, R{}, Theta{}, Phi{};
+          std::array<double, 4> out{};
+
+          auto var_value(const var& v, std::optional<size_t> index) const
+          {
+              switch (v.n)
+              {
+              case 't':
+                  return T;
+              case 'r':
+                  return R;
+              case u'Θ':
+                  return Theta;
+              case u'φ':
+                  return Phi;
+              case 'M':
+                  return 1.0;
+              default:
+                  return 0.0;
+              }
+          }
+      };
+      eval_context ctx;
+      for (int p{}; p < 10000000; p++)
+      {
+          constexpr auto D { vars.size() };
+          double tdelta = 1e-4;
+          std::array<std::array<std::array<double, D>, D>, D> gamma_val;
+          gamma_val[0][0][0] = I<0>(I<0>(I<0>(G))).eval(ctx);
+          gamma_val[1][0][0] = I<0>(I<0>(I<1>(G))).eval(ctx);
+          gamma_val[0][1][0] = I<0>(I<1>(I<0>(G))).eval(ctx);
+          gamma_val[1][1][0] = I<0>(I<1>(I<1>(G))).eval(ctx);
+          gamma_val[0][0][1] = I<1>(I<0>(I<0>(G))).eval(ctx);
+          gamma_val[1][0][1] = I<1>(I<0>(I<1>(G))).eval(ctx);
+          gamma_val[0][1][1] = I<1>(I<1>(I<0>(G))).eval(ctx);
+          gamma_val[1][1][1] = I<1>(I<1>(I<1>(G))).eval(ctx);
+
+          double a[4] {{}};
+          for (int i{}; i < D; ++i)
+              for (int j{}; j < D; ++j)
+                  for (int k{}; k < D; ++k)
+                      a[i] += -gamma_val[i][j][k] * V[j] * V[k];
+
+          std::cout << "A: " << a[0] << '\n';
+      }
     }
 #endif
 

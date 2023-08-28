@@ -576,7 +576,7 @@ namespace symb
         {
             if constexpr (!is_indexed_expr<F>{} && is_var_expr<V>{})
                 return typename F::template diff_t<V>{};
-            else if (std::true_type{})
+            else
                 return DerivativeExpr{};
         }
 
@@ -1304,7 +1304,7 @@ namespace symb
     template<Expr A, Expr B, Expr C, Expr D>
     struct simplify_t<ProdExpr<SumExpr<A, B>, SumExpr<C, D>>>
     {
-        using expr_t = SumExpr<SumExpr<ProdExpr<A, C>, ProdExpr<A, D>>, SumExpr<ProdExpr<B, C>, ProdExpr<B, D>>>;
+        using expr_t = SumExpr<ProdExpr<A, C>, SumExpr<ProdExpr<A, D>, SumExpr<ProdExpr<B, C>, ProdExpr<B, D>>>>;
     };
 
     template<typename f, Expr ArgExpr, IndexAssignment Ix>
@@ -1361,11 +1361,11 @@ namespace symb
         using expr_t = Constant<1.0 / a>;
     };
 
-#ifndef __GNUC__ //causes GCC to ICE?
-    template<NonConstant ExprT>
-    struct simplify_t<ProdExpr<ExprT, ZeroExpr>>
+#if 0
+    template<NonConstant A, NonConstant B, NonConstant C, NonConstant D>
+    struct simplify_t<SumExpr<SumExpr<A, B>, SumExpr<C, D>>>
     {
-        using expr_t = ZeroExpr;
+        using expr_t = SumExpr<A, SumExpr<B, SumExpr<C, D>>>;
     };
 #endif
 
