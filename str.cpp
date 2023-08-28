@@ -1,6 +1,6 @@
 #include "str.h"
 
-std::wstring_convert<std::codecvt<char16_t, char, std::mbstate_t>, char16_t> convert;
+std::wstring_convert<codecvt_u16, char16_t> convert;
 
 std::string to_str(const std::u16string& s)
 {
