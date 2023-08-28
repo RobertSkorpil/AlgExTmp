@@ -259,7 +259,7 @@ int main()
 {
     SetConsoleOutputCP(CP_UTF8);
 
-#ifdef SCHWARZSCHLD
+#ifdef SCHWARZSCHILD
     schwarzschild();
 #endif
 
