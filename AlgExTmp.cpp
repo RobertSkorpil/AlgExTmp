@@ -58,7 +58,7 @@ namespace {
         double M{ 1. };
         kerr k { M, J };
 
-        std::array<double, 4> x { {0., 3.0, 3.1415926536 / 2, 0 } };
+        std::array<double, 4> x { {0., 2.7, 3.1415926536 / 2, 0 } };
         std::array<double, 4> v { {1.0, 0., 0., 0.1615} }; // coordinate velocity (v[0] = dt/dt = 1)
 
         size_t cnt{};
@@ -84,7 +84,7 @@ namespace {
             for(size_t i{}; i < 4; ++i) v4[i] = v[i] * dt_dtau;
             auto vm { k.magnitude(v4, x) };
 
-            if(abs(vm + 1) > .1)
+            if(abs(vm + 1) > 1e-3)
             {
                 printf("Numeric instability too high!\n");
                 break;
