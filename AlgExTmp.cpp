@@ -79,7 +79,8 @@ namespace {
             for (size_t i{}; i < 4; ++i)
                 v[i] += tdelta * a[i];
 
-            auto dt_dtau { 1.0 / sqrt(-k.magnitude(v, x)) };
+            auto dtau_dt { sqrt(-k.magnitude(v, x)) };
+            auto dt_dtau { 1.0 / dtau_dt };
             vec v4; //four-velocity (v4[0] = dt / dtau
             for(size_t i{}; i < 4; ++i) v4[i] = v[i] * dt_dtau;
             auto vm { k.magnitude(v4, x) };
@@ -90,10 +91,10 @@ namespace {
                 break;
             }
 
-            if (cnt % 100 == 0)
+            if (cnt % 1000 == 0)
             {
                 printf("X = [%4.4lf, %4.4lf, %4.4lf, %4.4lf]\t", x[0], x[1], x[2], x[3]);
-                printf("dX/dτ = [%4.4lf, %4.4lf, %4.4lf, %4.4lf] mag = %4.4lf\n", v4[0], v4[1], v4[2], v4[3], vm);
+                printf("dτ/dt = %4.4lf dX/dτ = [%4.4lf, %4.4lf, %4.4lf, %4.4lf] mag = %4.4lf\n", dtau_dt, v4[0], v4[1], v4[2], v4[3], vm);
             }
 
             ++cnt;
