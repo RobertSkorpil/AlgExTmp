@@ -56,10 +56,10 @@ namespace {
     {
         double J{ 1.999 };
         double M{ 1. };
-        auto G{ kerr(M, J) };
+        kerr k { M, J };
 
-        double x[4] = {0., 3.0, 3.1415926536 / 2, 0 };
-        double v[4]= { 1., 0., 0., 0.1615 };
+        std::array<double, 4> x { {0., 3.0, 3.1415926536 / 2, 0 } };
+        std::array<double, 4> v { {1.0, 0., 0., 0.1615} }; // coordinate velocity (v[0] = dt/dt = 1)
 
         size_t cnt{};
         for (;;)
@@ -67,7 +67,7 @@ namespace {
             double tdelta{ 1e-4 };
             double a[4]{ {} };
 
-            auto GV{ G(x[0], x[1], x[2], x[3]) };
+            auto GV{ k.christoffel(x) };
             for (int i{}; i < 4; ++i)
                 for (int j{}; j < 4; ++j)
                     for (int k{}; k < 4; ++k)
@@ -79,10 +79,21 @@ namespace {
             for (size_t i{}; i < 4; ++i)
                 v[i] += tdelta * a[i];
 
+            auto dt_dtau { 1.0 / sqrt(-k.magnitude(v, x)) };
+            vec v4; //four-velocity (v4[0] = dt / dtau
+            for(size_t i{}; i < 4; ++i) v4[i] = v[i] * dt_dtau;
+            auto vm { k.magnitude(v4, x) };
+
+            if(abs(vm + 1) > .1)
+            {
+                printf("Numeric instability too high!\n");
+                break;
+            }
+
             if (cnt % 100 == 0)
             {
-                printf("X : [%4.4lf, %4.4lf, %4.4lf, %4.4lf]\t", x[0], x[1], x[2], x[3]);
-                printf("V : [%4.4lf, %4.4lf, %4.4lf, %4.4lf]\n", v[0], v[1], v[2], v[3]);
+                printf("X = [%4.4lf, %4.4lf, %4.4lf, %4.4lf]\t", x[0], x[1], x[2], x[3]);
+                printf("dX/dτ = [%4.4lf, %4.4lf, %4.4lf, %4.4lf] mag = %4.4lf\n", v4[0], v4[1], v4[2], v4[3], vm);
             }
 
             ++cnt;

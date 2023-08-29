@@ -115,7 +115,7 @@ namespace symb
     constexpr auto expand(ExprT expr);
 
     template<Expr ExprT>
-    auto simplify(ExprT expr);
+    constexpr auto simplify(ExprT expr);
 
     template<Expr ExprT>
     constexpr size_t hash = 0;
@@ -1014,10 +1014,10 @@ namespace symb
     }
 
     template<index ix, size_t val, size_t range, Expr ExprT>
-    auto fac_factor(ExprT expr);
+    constexpr auto fac_factor(ExprT expr);
 
     template<index ix, size_t val, size_t range, Expr ExprT>
-    auto fac_factor(ExprT expr)
+    constexpr auto fac_factor(ExprT expr)
     {
         if constexpr (val == range)
             return ZeroExpr{};
@@ -1028,7 +1028,7 @@ namespace symb
     }
 
     template<index ix, size_t range, Expr ExprT>
-    auto Prod(ExprT expr)
+    constexpr auto Prod(ExprT expr)
     {
         return simplify(expand(fac_factor<ix, 0, range>(simplify(expand(expr)))));
     }
@@ -1468,7 +1468,7 @@ namespace symb
     }
 
     template<Expr ExprT>
-    auto simplify(ExprT expr)
+    constexpr auto simplify(ExprT expr)
     {
         using R = decltype(do_simplify(expr));
         if constexpr (std::is_same_v<ExprT, R>)

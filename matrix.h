@@ -97,7 +97,7 @@ constexpr auto matrix_determinant(MatrixT matrix)
 }
 
 template<size_t i, size_t j, symb::Expr MatrixT>
-constexpr auto minor(MatrixT matrix)
+constexpr auto mminor(MatrixT matrix)
 {
     using namespace symb;
     constexpr auto D{ MatrixT::size() };
@@ -116,7 +116,7 @@ constexpr auto matrix_inverse2(MatrixT matrix, DetT det_i)
     else
     {
         constexpr auto f{ (i + j) % 2 ? -1.0 : 1.0 };
-        return Array<decltype(det_i * c<f> * matrix_determinant(minor<j, i>(matrix))), decltype(matrix_inverse2<i, j + 1, D>(matrix, det_i))>{};
+        return Array<decltype(det_i * c<f> * matrix_determinant(mminor<j, i>(matrix))), decltype(matrix_inverse2<i, j + 1, D>(matrix, det_i))>{};
     }
 }
 
