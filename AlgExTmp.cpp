@@ -54,7 +54,7 @@ namespace {
 #ifdef KERR
     void kerr_geodesic()
     {
-        double J{ 1. };
+        double J{ 1.999 };
         double M{ 1. };
         auto G{ kerr(M, J) };
 
