@@ -82,10 +82,6 @@ namespace
     std::function<tensor3(point p)>
     make_christoffel(double M_, double J_)
     {
-
-      std::cout << "Metric: \n" << to_str(math_t::g.to_str()) << '\n';
-      std::cout << "Γ:      \n" << to_str(math_t::G.to_str()) << '\n';
-
       return [=](point p)
       {
           context ctx{ J_, M_, p[0], p[1], p[2], p[3] };

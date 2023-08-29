@@ -59,7 +59,7 @@ namespace {
         kerr k { M, J };
 
         std::array<double, 4> x { {0., 27, 3.1415926536 / 2, 0 } };
-        std::array<double, 4> v { {1.0, 0., 0., -1e-3} }; // coordinate velocity (v[0] = dt/dt = 1)
+        std::array<double, 4> v { {1.0, 0., 0., -7e-3} }; // coordinate velocity (v[0] = dt/dt = 1)
 
         size_t cnt{};
         for (;;)
@@ -91,19 +91,15 @@ namespace {
                 break;
             }
 
-            if (cnt % 1000 == 0)
+            if (cnt % 10000 == 0)
             {
-                printf("X = [%4.4lf, %4.4lf, %4.4lf, %4.4lf]\t", x[0], x[1], x[2], x[3]);
-                printf("dτ/dt = %4.4lf dX/dτ = [%4.4lf, %4.4lf, %4.4lf, %4.4lf] mag = %4.4lf\n", dtau_dt, v4[0], v4[1], v4[2], v4[3], vm);
+                printf("\33[2K\rX = [%4.4lf, %4.4lf, %4.4lf, %4.4lf]\t", x[0], x[1], x[2], x[3]);
+                printf("dτ/dt = %4.4lf dX/dτ = [%4.4lf, %4.4lf, %4.4lf, %4.4lf] mag = %4.4lf", dtau_dt, v4[0], v4[1], v4[2], v4[3], vm);
+                fflush(stdout);
             }
 
             ++cnt;
         }
-        /*for (size_t i{}; i < 4; ++i)
-            for (size_t j{}; j < 4; ++j)
-                for (size_t k{}; k < 4; ++k)
-                    std::cout << GV[i][j][k] << ", ";*/
-        std::cout << '\n';
     }
 #endif
 
