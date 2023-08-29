@@ -59,7 +59,7 @@ namespace {
         kerr k { M, J };
 
         std::array<double, 4> x { {0., 27, 3.1415926536 / 2 + 1e-2, 0 } };
-        std::array<double, 4> v { {1.0, 0., 0., -5.709059e-3} }; // coordinate velocity (v[0] = dt/dt = 1)
+        std::array<double, 4> v { {1.0, 0., 0., -5.7091e-3} }; // coordinate velocity (v[0] = dt/dt = 1)
 
         size_t cnt{};
         for (;;)
