@@ -13,9 +13,21 @@ project ("AlgExTmp")
 add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
 add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
-# Add source to this project's executable.
-add_executable (AlgExTmp "AlgExTmp.cpp"  "symb.h" "str.h" "str.cpp" "symb.cpp" "kerr.h" "kerr.cpp" "riemann.h" "matrix.h")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -mavx2")
 
+find_package(glfw3 CONFIG REQUIRED)
+find_package(GLEW REQUIRED)
+
+# Add source to this project's executable.
+add_executable (AlgExTmp "AlgExTmp.cpp" "symb/str.h" "symb/str.cpp" "kerr.h" "kerr.cpp" "symb/riemann.h" "symb/matrix.h"    "vis/vis.h" "vis/vis.cpp")
+
+add_subdirectory(symb)
+add_subdirectory(vis)
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/vis/vertex.glsl DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/vis/fragment.glsl DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+
+target_link_libraries(AlgExTmp symb vis)
 set_property(TARGET AlgExTmp PROPERTY CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 
 # TODO: Add tests and install targets if needed.

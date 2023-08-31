@@ -1,14 +1,18 @@
 #pragma once
 #include <array>
 #include <functional>
+#include "affine_space.h"
 
-using vec = std::array<double, 4>;
-using point = std::array<double, 4>;
-using tensor3 = std::array<std::array<std::array<double, 4>, 4>, 4>;
 struct kerr
 {
-  std::function<double(vec v, point p)> magnitude;
-  std::function<tensor3(point p)> christoffel;
+    using vec = affine_space<4>::vec;
+    using point = affine_space<4>::point;
+    using tensor3 = affine_space<4>::tensor3;
 
-  kerr(double M, double J);
+    std::function<double(vec v, point p)> magnitude;
+    std::function<tensor3(point p)> christoffel;
+    std::function<point(point)> sphere_to_cart;
+    std::function<double(vec)> ds;
+
+    kerr(double M, double J);
 };

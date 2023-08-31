@@ -8,6 +8,10 @@
 using namespace symb;
 namespace
 {
+    using vec = kerr::vec;
+    using point = kerr::point;
+    using tensor3 = kerr::tensor3;
+
     struct math_t
     {
       constexpr static auto t{ v<'t'> };
@@ -35,6 +39,10 @@ namespace
 
       constexpr static auto vars{ arr(t, r, theta, phi) };
       constexpr static auto G{ Christoffel(g, vars) };
+
+      constexpr static auto ds{ Sqrt(Sum<'u', 4>(Sum<'v', 4>(-Ix<'v'>(Ix<'u'>(g)) * Ix<'u'>(A) * Ix<'v'>(A)))) };
+
+      constexpr static auto Sphere_To_Cart{ arr(t, Sqrt(r * r + a * a) * Sin(theta) * Cos(phi), Sqrt(r * r + a * a) * Sin(theta) * Sin(phi), r * Cos(theta)) };
     };
     
     struct context
@@ -44,9 +52,9 @@ namespace
 
       static constexpr auto _2{ c<2.0> };
 
-      double var_value(const var& v, std::optional<size_t> index) const
+      double operator()(char16_t v, std::optional<size_t> index) const
       {
-          switch (v.n)
+          switch (v)
           {
           case 'J':
               return J;
@@ -68,8 +76,7 @@ namespace
       }
     };
 
-    std::function<double(vec v, point p)>
-    make_magnitude(double M_, double J_)
+    std::function<double(vec v, point p)> make_magnitude(double M_, double J_)
     {
       return [=](vec v, point p)
       {
@@ -79,8 +86,7 @@ namespace
     }
 
 
-    std::function<tensor3(point p)>
-    make_christoffel(double M_, double J_)
+    std::function<tensor3(point p)> make_christoffel(double M_, double J_)
     {
       return [=](point p)
       {
@@ -90,7 +96,31 @@ namespace
           return val;
       };
     }
+
+    std::function<point(point)> make_sphere_to_cart(double M_, double J_)
+    {
+        return [=](point p)
+        {
+            context ctx{ J_, M_, p[0], p[1], p[2], p[3] };
+            point val;
+            math_t::Sphere_To_Cart.eval_array(ctx, &val[0]);
+            return val;
+        };
+    }
+
+    std::function<double(vec)> make_ds(double M_, double J_)
+    {
+        return [=](vec v)
+        {
+            context ctx{ J_, M_, v[0], v[1], v[2], v[3] };
+            return math_t::ds.eval(ctx);
+        };
+    }
 }
 
 kerr::kerr(double M, double J)
-  : christoffel { make_christoffel(M, J) }, magnitude { make_magnitude(M, J) } {}
+    : christoffel{ make_christoffel(M, J) }, 
+    magnitude{ make_magnitude(M, J) }, 
+    sphere_to_cart{ make_sphere_to_cart(M, J) },
+    ds{ make_ds(M, J) } 
+{}

@@ -64,13 +64,9 @@ namespace symb
 
     struct dummy_eval_context
     {
-        auto var_value(const var& v, std::optional<size_t> index) const
+        auto operator()(const var& v, std::optional<size_t> index) const
         {
             return 0.0;
-        }
-
-        void set_var_value(const var& v, std::optional<size_t> index, scalar value) const
-        {
         }
     };
 
@@ -91,7 +87,7 @@ namespace symb
     concept Expr = requires { std::remove_reference_t<T>::eval(dummy_eval_context{}); };
 
     template<typename T>
-    concept Valuation = requires { T::var_value('x'); };
+    concept Valuation = std::invocable<T, char16_t, size_t>;
 
     template<typename T>
     concept ConstantLike = requires { T::is_const; }&& Expr<T>;
@@ -280,7 +276,7 @@ namespace symb
         template<typename Valuation>
         static auto INLINE eval(const Valuation& ctx)
         {
-            return ctx.var_value(vr, vr.ix);
+            return ctx(vr.n, vr.ix);
         }
 
         template<VarExp D>
@@ -627,6 +623,7 @@ namespace symb
 
     using sin_t = Func<sin, "Sin">; 
     using cos_t = Func<cos, "Cos">;
+    using sqrt_t = Func<sqrt, "Sqrt">;
 
     scalar do_inverse(scalar x);
     using inv_t = Func<do_inverse, "inv">;
@@ -634,6 +631,10 @@ namespace symb
     extern sin_t Sin;
     extern cos_t Cos;
     extern inv_t Inv;
+    extern sqrt_t Sqrt;
+
+    template<Expr ExprT, int Power, IndexAssignment Ix = no_index>
+    struct PowerExpr;
 
     template<Expr ArgExpr, IndexAssignment Ix>
     struct func_derivative<sin_t, ArgExpr, Ix>
@@ -651,6 +652,12 @@ namespace symb
     struct func_derivative<inv_t, ArgExpr, Ix>
     {
         using expr_t = FuncExpr<inv_t, ProdExpr<ProdExpr<Constant<-1.0>, ArgExpr, Ix>, ArgExpr, Ix>, Ix>;
+    };
+
+    template<Expr ArgExpr>
+    struct func_derivative<sqrt_t, ArgExpr, no_index>
+    {
+        using expr_t = PowerExpr<ProdExpr<Constant<2.0>, FuncExpr<sqrt_t, ArgExpr>>, -1>;
     };
 
     template<typename F, Expr ArgExpr, IndexAssignment Ix>
@@ -688,7 +695,7 @@ namespace symb
         }
     };
 
-    template<Expr ExprT, int Power, IndexAssignment Ix = no_index>
+    template<Expr ExprT, int Power, IndexAssignment Ix>
     struct PowerExpr
     {
         static constexpr int non_const{};
